@@ -1,4 +1,4 @@
-name: build
+name: CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  build-rocq:
+  rocq:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -19,7 +19,7 @@ jobs:
         run: |
           make -j4
 
-  build-go:
+  go:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,15 +42,13 @@ jobs:
       - name: go test
         run: go test -vet=all -v ./...
 
-      - name: Install new goose
-        run: go install github.com/goose-lang/goose/cmd/goose@new
       - name: Check goose output
         working-directory: "."
         run: |
           ./etc/update-goose.sh
           git diff --exit-code
 
-  build-template-rust:
+  template-rust:
     runs-on: ubuntu-latest
     defaults:
       run:
