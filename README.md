@@ -1,12 +1,12 @@
-# Systems Verification assignments and solutions
+# Systems Verification materials
 
-[![build](https://github.com/tchajed/sys-verif-solutions/actions/workflows/build.yml/badge.svg)](https://github.com/tchajed/sys-verif-solutions/actions/workflows/build.yml)
+[![build](https://github.com/tchajed/sys-verif-materials/actions/workflows/build.yml/badge.svg)](https://github.com/tchajed/sys-verif-materials/actions/workflows/build.yml)
 
 - `go/`: code to be verified
 - `src/`: all Rocq proofs
   - `software_foundations/`: exercise files from Logical Foundations chapter of
     SF
-  - `sys_verif/`: course lectures, demos, and exercises
+  - `sys_verif/`: literate course notes and demos
   - `Goose/`: generated code from goose
 - `template/`: tooling for compiling assignments, demos, and lecture notes
 - `etc/` some scripts for managing this repo itself
@@ -25,6 +25,14 @@ Update the Software Foundations exercises distributed in `src/software_foundatio
 
 ```sh
 ./etc/update-lf.sh
+```
+
+## Including solutions
+
+Assuming the private solutions repo is checked out adjacent to this repo:
+
+```sh
+ln -s $(realpath ../sys-verif-solutions/src/sys_verif/assignment_solns) src/sys_verif/
 ```
 
 ## Testing

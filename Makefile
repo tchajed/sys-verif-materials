@@ -1,7 +1,7 @@
 SRC_DIRS := 'src'
-ALL_VFILES = $(shell find $(SRC_DIRS) -name "*.v")
-PROJ_VFILES := $(shell find 'src/sys_verif' -name "*.v")
-SF_VFILES := $(shell find 'src/software_foundations' -name "*.v")
+ALL_VFILES = $(shell find -L $(SRC_DIRS) -name "*.v")
+PROJ_VFILES := $(shell find -L 'src/sys_verif' -name "*.v")
+SF_VFILES := $(shell find -L 'src/software_foundations' -name "*.v")
 
 # extract any global arguments for Rocq from _RocqProject
 ROCQPROJECT_ARGS := $(shell sed -E -e '/^\#/d' -e "s/'([^']*)'/\1/g" -e 's/-arg //g' _RocqProject)
@@ -20,6 +20,11 @@ vok: $(PROJ_VFILES:.v=.vok)
 
 # build all of Software Foundations
 sf: $(SF_VFILES:.v=.vo)
+
+# build assignment solutions (via symbolic link)
+SOLN_FILES := $(shell [ -e src/sys_verif/assignment_solns ] && \
+	find -L src/sys_verif/assignment_solns -name "*.v" )
+solutions: $(SOLN_FILES:.v=.vo)
 
 all: vo sf
 

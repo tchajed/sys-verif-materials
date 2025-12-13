@@ -16,3 +16,5 @@ _built/
 *.out
 # Rocq output cache
 .template-cache/
+# symbolic link to solutions
+src/sys_verif/assignment_solns
