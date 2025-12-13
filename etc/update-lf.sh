@@ -7,7 +7,7 @@ set -eu
 # - the lf/ directory level is removed
 
 wget --no-verbose -O - 'https://softwarefoundations.cis.upenn.edu/lf-current/lf.tgz' |
-  gtar --warning=no-unknown-keyword -z -xf - --wildcards "*.v"
+  gtar --warning=no-unknown-keyword -z -xf - --wildcards "*.v" "*/LICENSE"
 
 rm lf/*Test.v
 

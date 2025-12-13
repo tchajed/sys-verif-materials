@@ -112,9 +112,8 @@ fn copy_static(out: &Path) -> anyhow::Result<()> {
 fn copy_software_foundations(out: &Path) -> anyhow::Result<()> {
     for src in &[
         "src/sys_verif/software_foundations.v",
-        // non-Coq files
+        // non-Rocq files
         "src/software_foundations/LICENSE",
-        "src/software_foundations/impdriver.ml",
     ] {
         install_copy(src, out.join(src))?;
     }
