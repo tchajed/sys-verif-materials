@@ -1,4 +1,4 @@
-//! Create the student repo (sys-verif-fa25-proofs).
+//! Create the student repo (sys-verif-fa26-proofs).
 // allow using format! regardless of whether interpolation is needed or not
 #![allow(clippy::useless_format)]
 use std::fs;
@@ -153,18 +153,16 @@ fn create_solution(input: &str, out: &Path) -> anyhow::Result<()> {
 }
 
 fn create_assignments(out: &Path) -> anyhow::Result<()> {
-    for hw in ["hw1", "hw3", "hw4"] {
-        for path in walkdir::WalkDir::new(format!("src/sys_verif/assignment_solns/{hw}"))
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().is_some_and(|ext| ext == "v"))
-        {
-            let src_path = path.path().to_string_lossy();
-            let dst_path = out
-                .join(format!("src/sys_verif/assignments/{hw}"))
-                .join(path.file_name());
-            create_exercise(&src_path, &dst_path)?;
-        }
+    let src_dir = Path::new("src/sys_verif/assignment_solns");
+    let dst_dir = out.join("src/sys_verif/assignments");
+    for path in walkdir::WalkDir::new(src_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "v"))
+    {
+        let src_path = path.path();
+        let dst_path = dst_dir.join(src_path.strip_prefix(src_dir).unwrap());
+        create_exercise(&src_path.to_string_lossy(), &dst_path)?;
     }
     Ok(())
 }
