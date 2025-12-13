@@ -1,0 +1,84 @@
+---
+source: src/literate.rs
+expression: md
+---
+---
+# Auto-generated from literate source. DO NOT EDIT.
+category: lecture-note
+---
+
+# Introduction to Rocq
+
+In this lecture, we'll get an introduction to functional programming and see
+how Rocq supports both writing and verifying functional programs.
+
+To write functional programs, we'll start by defining some data types for
+our functions to operate on.
+
+```rocq
+Inductive day : Type :=
+| monday
+| tuesday
+| wednesday
+| thursday
+| friday
+| saturday
+| sunday.
+
+```
+
+Now what we have `day`, we can define functions on days:
+
+```rocq
+(** next_weekday is a simple example of a function operating on [day] *)
+Definition next_weekday (d: day) : day :=
+  match d with
+  | monday => tuesday
+  | tuesday => wednesday
+  | wednesday => thursday
+  | thursday => friday
+  | friday => monday
+  | saturday => monday
+  | sunday => monday
+  end.
+
+Compute (next_weekday friday).
+```
+
+
+
+:::: note Output
+
+```txt
+     = monday
+     : day
+```
+
+::::
+
+
+```rocq
+Lemma test_next_weekday:
+  (next_weekday (next_weekday saturday)) = tuesday.
+Proof.
+  (* The simpl tactic computes functions in the goal. *)
+  simpl.
+```
+
+
+
+:::: info Goal
+
+```txt
+  ============================
+  tuesday = tuesday
+```
+
+
+::::
+
+
+```rocq
+  reflexivity.
+Qed.
+```

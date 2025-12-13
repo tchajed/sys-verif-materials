@@ -1,0 +1,71 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-rocq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: tchajed/setup-rocq@v1
+      - name: Install dependencies
+        run: |
+          opam install --deps-only .
+      - name: Build
+        run: |
+          make -j4
+
+  build-go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "go"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go/go.mod"
+          cache-dependency-path: "go/go.sum"
+
+      - name: Check style
+        run: |
+          gofmt -w -s .
+          git diff --exit-code
+
+      - name: Install dependencies
+        run: go get -t ./...
+      - name: go test
+        run: go test -vet=all -v ./...
+
+      - name: Install new goose
+        run: go install github.com/goose-lang/goose/cmd/goose@new
+      - name: Check goose output
+        working-directory: "."
+        run: |
+          ./etc/update-goose.sh
+          git diff --exit-code
+
+  build-template-rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "template"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy, rustfmt
+          cache: true
+          cache-workspaces: "template -> target"
+      - run: cargo test
+      - run: cargo fmt --check
+      - name: cargo clippy
+        run: cargo clippy --tests -- --no-deps -D clippy::all
+      - name: test repo generation
+        working-directory: "."
+        run: ./etc/template repo ../proofs-repo

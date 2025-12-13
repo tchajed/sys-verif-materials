@@ -1,0 +1,5 @@
+# these are compiled from the assignment source
+#
+# the generated files are in the Coq source tree so they're compiled and tested
+*_ex.v
+*_soln.v

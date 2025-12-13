@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -eu
+
+# Thin wrapper around the ./template Rust binary.
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+REPO="$DIR/.."
+
+cargo run -r -q --manifest-path "$REPO"/template/Cargo.toml -- "$@"

@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -eu
+
+CLEAN_REPO="$HOME/code/cs839-fa25/sys-verif-fa25-proofs"
+
+HW="hw4"
+
+# untar_one takes a student's hw.tar.gz, extracts it, and gets the dependencies compiled
+untar_one() {
+  hw_file="$1"
+  filename=$(basename -- "$hw_file")
+  # %% takes up to the first . (removing both .tar and .gz)
+  name="${filename%%.*}"
+  if [ -d "$name" ]; then
+    echo "$name already exists, skipping" 1>&2
+    exit
+  fi
+  gcp -r -p "$CLEAN_REPO" "$name"
+  cd "$name"
+  # in case the "clean repo" actually has some changes
+  git restore . && git clean -f
+  git checkout "$HW"-release 1>/dev/null 2>&1
+  git checkout -b "$HW"-submission 1>/dev/null 2>&1
+  cd ..
+  # TODO: if the file is unchanged, we would like to not change the
+  # modification time for make, but this will require more than what
+  # bash can do
+  gtar --one-top-level="$name" --no-xattrs --one-top-level -x -f "$hw_file"
+
+  cd "$name"
+  git restore src/sys_verif/notes src/sys_verif/program_proof
+  # use the commit the student was using
+  if [[ $(wc -l perennial-commit | awk '{print $1}') -eq 1 ]]; then
+    git -C perennial checkout $(cat perennial-commit) 1>/dev/null 2>&1 || true
+  fi
+  git add perennial perennial-commit 1>/dev/null
+  git submodule update --init --recursive 1>/dev/null
+  git commit --no-gpg-sign --no-verify -a -m "Student submission" --author="$name <netid@wisc.edu>"
+  echo "compiling $hw_file"
+  make -j4 -k $(find src/sys_verif/assignments/$HW -name "*.v" | sed 's/\.v$/.vo/') 1>/dev/null || true
+}
+
+untar_one "$1"

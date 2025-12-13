@@ -1,0 +1,10 @@
+#!/bin/bash
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
+set -eu
+
+submissions="$1"
+unzip "$submissions"
+
+parallel -k --line-buffer -j4 "$DIR/untar-hw" ::: *.tar.gz

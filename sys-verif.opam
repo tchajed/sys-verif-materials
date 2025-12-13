@@ -1,0 +1,28 @@
+opam-version: "2.0"
+license: "MIT"
+maintainer: "Tej Chajed"
+authors: "Tej Chajed <chajed@wisc.edu>"
+homepage: "https://github.com/tchajed/sys-verif-solutions"
+bug-reports: "https://github.com/tchajed/sys-verif-solutions/issues"
+dev-repo: "git+https://github.com/tchajed/sys-verif-solutions.git"
+version: "dev"
+synopsis: "Systems verification course material"
+
+depends: [
+  "perennial"
+]
+
+pin-depends: [
+  ["perennial.dev"             "git+https://github.com/mit-pdos/perennial#27187ff6f93c2bcefa23b1a9b97eaa268b5b2a14"]
+
+  ## begin indirect
+  ["coq-record-update.dev"     "git+https://github.com/tchajed/coq-record-update#7b2645210331c3ec4ed75fa5ad0840a723f25151"]
+  ["coqutil.dev"               "git+https://github.com/mit-plv/coqutil#f595ddf0de48aae23862dc146928825db960c955"]
+  ["iris-named-props.dev"      "git+https://github.com/tchajed/iris-named-props#c388714a93b1c043ed42a3f446280abd5113d26f"]
+  ["rocq-iris.dev"             "git+https://gitlab.mpi-sws.org/iris/iris#d8f049ee6e28201a8781622ab4390a62c5293a85"]
+  ["rocq-stdpp.dev"            "git+https://gitlab.mpi-sws.org/iris/stdpp#a09c2a19de6898fd470983ca2363ade519d70fe1"]
+  ## end
+]
+
+build: [make "-j%{jobs}%"]
+install: ["perennial-cli" "install"]
