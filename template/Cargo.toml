@@ -17,7 +17,7 @@ tempdir = "0.3.7"
 walkdir = "2.5.0"
 
 [dev-dependencies]
-insta = { version = "1.44.3", features = ["yaml"] }
+insta = { version = "1.45.1", features = ["yaml"] }
 
 [profile.dev.package]
 insta.opt-level = 3
