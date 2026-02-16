@@ -2,352 +2,201 @@
 Require Export New.proof.proof_prelude.
 Require Export New.generatedproof.sync.
 Require Export New.golang.theory.
-
 Require Export New.code.sys_verif_code.sharded_hashmap.
 
 Set Default Proof Using "Type".
 
 Module sharded_hashmap.
-
-(* type sharded_hashmap.entry *)
 Module entry.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  key' : w32;
-  val' : w64;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : sharded_hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance entry_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (sharded_hashmap.entry.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "key" ∷ l.[(sharded_hashmap.entry.t), "key"] ↦{dq} v.(sharded_hashmap.entry.key') ∗
+      "val" ∷ l.[(sharded_hashmap.entry.t), "val"] ↦{dq} v.(sharded_hashmap.entry.val') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance entry_into_val_typed
+   :
+  IntoValTypedUnderlying (sharded_hashmap.entry.t) (sharded_hashmap.entryⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance entry_access_load_key l (v : (sharded_hashmap.entry.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.entry.t), "key"] ↦{dq} (v.(sharded_hashmap.entry.key')))
+    (l.[(sharded_hashmap.entry.t), "key"] ↦{dq} (v.(sharded_hashmap.entry.key')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance entry_access_store_key l (v : (sharded_hashmap.entry.t)) key' :
+  AccessStrict
+    (l.[(sharded_hashmap.entry.t), "key"] ↦ (v.(sharded_hashmap.entry.key')))
+    (l.[(sharded_hashmap.entry.t), "key"] ↦ key')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.entry.key') := key'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance entry_access_load_val l (v : (sharded_hashmap.entry.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.entry.t), "val"] ↦{dq} (v.(sharded_hashmap.entry.val')))
+    (l.[(sharded_hashmap.entry.t), "val"] ↦{dq} (v.(sharded_hashmap.entry.val')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance entry_access_store_val l (v : (sharded_hashmap.entry.t)) val' :
+  AccessStrict
+    (l.[(sharded_hashmap.entry.t), "val"] ↦ (v.(sharded_hashmap.entry.val')))
+    (l.[(sharded_hashmap.entry.t), "val"] ↦ val')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.entry.val') := val'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End entry.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent sharded_hashmap.entry.
-#[local] Typeclasses Transparent sharded_hashmap.entry.
-
-Global Instance entry_wf : struct.Wf sharded_hashmap.entry.
-Proof. apply _. Qed.
-
-Global Instance settable_entry : Settable entry.t :=
-  settable! entry.mk < entry.key'; entry.val' >.
-Global Instance into_val_entry : IntoVal entry.t :=
-  {| to_val_def v :=
-    struct.val_aux sharded_hashmap.entry [
-    "key" ::= #(entry.key' v);
-    "val" ::= #(entry.val' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_entry : IntoValTyped entry.t sharded_hashmap.entry :=
-{|
-  default_val := entry.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_entry_key : IntoValStructField "key" sharded_hashmap.entry entry.key'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_entry_val : IntoValStructField "val" sharded_hashmap.entry entry.val'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_entry key' val':
-  PureWp True
-    (struct.make #sharded_hashmap.entry (alist_val [
-      "key" ::= #key';
-      "val" ::= #val'
-    ]))%struct
-    #(entry.mk key' val').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance entry_struct_fields_split dq l (v : entry.t) :
-  StructFieldsSplit dq l v (
-    "Hkey" ∷ l ↦s[sharded_hashmap.entry :: "key"]{dq} v.(entry.key') ∗
-    "Hval" ∷ l ↦s[sharded_hashmap.entry :: "val"]{dq} v.(entry.val')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (entry.key' v)) (sharded_hashmap.entry) "key"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type sharded_hashmap.entryShard *)
 Module entryShard.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  entries' : slice.t;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : sharded_hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance entryShard_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (sharded_hashmap.entryShard.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "entries" ∷ l.[(sharded_hashmap.entryShard.t), "entries"] ↦{dq} v.(sharded_hashmap.entryShard.entries') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance entryShard_into_val_typed
+   :
+  IntoValTypedUnderlying (sharded_hashmap.entryShard.t) (sharded_hashmap.entryShardⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance entryShard_access_load_entries l (v : (sharded_hashmap.entryShard.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.entryShard.t), "entries"] ↦{dq} (v.(sharded_hashmap.entryShard.entries')))
+    (l.[(sharded_hashmap.entryShard.t), "entries"] ↦{dq} (v.(sharded_hashmap.entryShard.entries')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance entryShard_access_store_entries l (v : (sharded_hashmap.entryShard.t)) entries' :
+  AccessStrict
+    (l.[(sharded_hashmap.entryShard.t), "entries"] ↦ (v.(sharded_hashmap.entryShard.entries')))
+    (l.[(sharded_hashmap.entryShard.t), "entries"] ↦ entries')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.entryShard.entries') := entries'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End entryShard.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent sharded_hashmap.entryShard.
-#[local] Typeclasses Transparent sharded_hashmap.entryShard.
-
-Global Instance entryShard_wf : struct.Wf sharded_hashmap.entryShard.
-Proof. apply _. Qed.
-
-Global Instance settable_entryShard : Settable entryShard.t :=
-  settable! entryShard.mk < entryShard.entries' >.
-Global Instance into_val_entryShard : IntoVal entryShard.t :=
-  {| to_val_def v :=
-    struct.val_aux sharded_hashmap.entryShard [
-    "entries" ::= #(entryShard.entries' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_entryShard : IntoValTyped entryShard.t sharded_hashmap.entryShard :=
-{|
-  default_val := entryShard.mk (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_entryShard_entries : IntoValStructField "entries" sharded_hashmap.entryShard entryShard.entries'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_entryShard entries':
-  PureWp True
-    (struct.make #sharded_hashmap.entryShard (alist_val [
-      "entries" ::= #entries'
-    ]))%struct
-    #(entryShard.mk entries').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance entryShard_struct_fields_split dq l (v : entryShard.t) :
-  StructFieldsSplit dq l v (
-    "Hentries" ∷ l ↦s[sharded_hashmap.entryShard :: "entries"]{dq} v.(entryShard.entries')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type sharded_hashmap.bucket *)
 Module bucket.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  mu' : loc;
-  subMap' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : sharded_hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance bucket_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (sharded_hashmap.bucket.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "mu" ∷ l.[(sharded_hashmap.bucket.t), "mu"] ↦{dq} v.(sharded_hashmap.bucket.mu') ∗
+      "subMap" ∷ l.[(sharded_hashmap.bucket.t), "subMap"] ↦{dq} v.(sharded_hashmap.bucket.subMap') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance bucket_into_val_typed
+   :
+  IntoValTypedUnderlying (sharded_hashmap.bucket.t) (sharded_hashmap.bucketⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance bucket_access_load_mu l (v : (sharded_hashmap.bucket.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.bucket.t), "mu"] ↦{dq} (v.(sharded_hashmap.bucket.mu')))
+    (l.[(sharded_hashmap.bucket.t), "mu"] ↦{dq} (v.(sharded_hashmap.bucket.mu')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance bucket_access_store_mu l (v : (sharded_hashmap.bucket.t)) mu' :
+  AccessStrict
+    (l.[(sharded_hashmap.bucket.t), "mu"] ↦ (v.(sharded_hashmap.bucket.mu')))
+    (l.[(sharded_hashmap.bucket.t), "mu"] ↦ mu')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.bucket.mu') := mu'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance bucket_access_load_subMap l (v : (sharded_hashmap.bucket.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.bucket.t), "subMap"] ↦{dq} (v.(sharded_hashmap.bucket.subMap')))
+    (l.[(sharded_hashmap.bucket.t), "subMap"] ↦{dq} (v.(sharded_hashmap.bucket.subMap')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance bucket_access_store_subMap l (v : (sharded_hashmap.bucket.t)) subMap' :
+  AccessStrict
+    (l.[(sharded_hashmap.bucket.t), "subMap"] ↦ (v.(sharded_hashmap.bucket.subMap')))
+    (l.[(sharded_hashmap.bucket.t), "subMap"] ↦ subMap')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.bucket.subMap') := subMap'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End bucket.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent sharded_hashmap.bucket.
-#[local] Typeclasses Transparent sharded_hashmap.bucket.
-
-Global Instance bucket_wf : struct.Wf sharded_hashmap.bucket.
-Proof. apply _. Qed.
-
-Global Instance settable_bucket : Settable bucket.t :=
-  settable! bucket.mk < bucket.mu'; bucket.subMap' >.
-Global Instance into_val_bucket : IntoVal bucket.t :=
-  {| to_val_def v :=
-    struct.val_aux sharded_hashmap.bucket [
-    "mu" ::= #(bucket.mu' v);
-    "subMap" ::= #(bucket.subMap' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_bucket : IntoValTyped bucket.t sharded_hashmap.bucket :=
-{|
-  default_val := bucket.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_bucket_mu : IntoValStructField "mu" sharded_hashmap.bucket bucket.mu'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_bucket_subMap : IntoValStructField "subMap" sharded_hashmap.bucket bucket.subMap'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_bucket mu' subMap':
-  PureWp True
-    (struct.make #sharded_hashmap.bucket (alist_val [
-      "mu" ::= #mu';
-      "subMap" ::= #subMap'
-    ]))%struct
-    #(bucket.mk mu' subMap').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance bucket_struct_fields_split dq l (v : bucket.t) :
-  StructFieldsSplit dq l v (
-    "Hmu" ∷ l ↦s[sharded_hashmap.bucket :: "mu"]{dq} v.(bucket.mu') ∗
-    "HsubMap" ∷ l ↦s[sharded_hashmap.bucket :: "subMap"]{dq} v.(bucket.subMap')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (bucket.mu' v)) (sharded_hashmap.bucket) "mu"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type sharded_hashmap.HashMap *)
 Module HashMap.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  buckets' : slice.t;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : sharded_hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance HashMap_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (sharded_hashmap.HashMap.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "buckets" ∷ l.[(sharded_hashmap.HashMap.t), "buckets"] ↦{dq} v.(sharded_hashmap.HashMap.buckets') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance HashMap_into_val_typed
+   :
+  IntoValTypedUnderlying (sharded_hashmap.HashMap.t) (sharded_hashmap.HashMapⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance HashMap_access_load_buckets l (v : (sharded_hashmap.HashMap.t)) dq :
+  AccessStrict
+    (l.[(sharded_hashmap.HashMap.t), "buckets"] ↦{dq} (v.(sharded_hashmap.HashMap.buckets')))
+    (l.[(sharded_hashmap.HashMap.t), "buckets"] ↦{dq} (v.(sharded_hashmap.HashMap.buckets')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance HashMap_access_store_buckets l (v : (sharded_hashmap.HashMap.t)) buckets' :
+  AccessStrict
+    (l.[(sharded_hashmap.HashMap.t), "buckets"] ↦ (v.(sharded_hashmap.HashMap.buckets')))
+    (l.[(sharded_hashmap.HashMap.t), "buckets"] ↦ buckets')
+    (l ↦ v) (l ↦ (v <|(sharded_hashmap.HashMap.buckets') := buckets'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End HashMap.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent sharded_hashmap.HashMap.
-#[local] Typeclasses Transparent sharded_hashmap.HashMap.
-
-Global Instance HashMap_wf : struct.Wf sharded_hashmap.HashMap.
-Proof. apply _. Qed.
-
-Global Instance settable_HashMap : Settable HashMap.t :=
-  settable! HashMap.mk < HashMap.buckets' >.
-Global Instance into_val_HashMap : IntoVal HashMap.t :=
-  {| to_val_def v :=
-    struct.val_aux sharded_hashmap.HashMap [
-    "buckets" ::= #(HashMap.buckets' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_HashMap : IntoValTyped HashMap.t sharded_hashmap.HashMap :=
-{|
-  default_val := HashMap.mk (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_HashMap_buckets : IntoValStructField "buckets" sharded_hashmap.HashMap HashMap.buckets'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_HashMap buckets':
-  PureWp True
-    (struct.make #sharded_hashmap.HashMap (alist_val [
-      "buckets" ::= #buckets'
-    ]))%struct
-    #(HashMap.mk buckets').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance HashMap_struct_fields_split dq l (v : HashMap.t) :
-  StructFieldsSplit dq l v (
-    "Hbuckets" ∷ l ↦s[sharded_hashmap.HashMap :: "buckets"]{dq} v.(HashMap.buckets')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-Section names.
-
-Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context `{!globalsGS Σ}.
-Context {go_ctx : GoContext}.
-#[local] Transparent is_pkg_defined is_pkg_defined_pure.
-
-Global Instance is_pkg_defined_pure_sharded_hashmap : IsPkgDefinedPure sharded_hashmap :=
-  {|
-    is_pkg_defined_pure_def go_ctx :=
-      is_pkg_defined_pure_single sharded_hashmap ∧
-      is_pkg_defined_pure code.sync.sync;
-  |}.
-
-#[local] Transparent is_pkg_defined_single is_pkg_defined_pure_single.
-Global Program Instance is_pkg_defined_sharded_hashmap : IsPkgDefined sharded_hashmap :=
-  {|
-    is_pkg_defined_def go_ctx :=
-      (is_pkg_defined_single sharded_hashmap ∗
-       is_pkg_defined code.sync.sync)%I
-  |}.
-Final Obligation. iIntros. iFrame "#%". Qed.
-#[local] Opaque is_pkg_defined_single is_pkg_defined_pure_single.
-
-Global Instance wp_func_call_hash :
-  WpFuncCall sharded_hashmap.hash _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_newBucket :
-  WpFuncCall sharded_hashmap.newBucket _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_createNewBuckets :
-  WpFuncCall sharded_hashmap.createNewBuckets _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewHashMap :
-  WpFuncCall sharded_hashmap.NewHashMap _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_bucketIdx :
-  WpFuncCall sharded_hashmap.bucketIdx _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_method_call_entryShard'ptr_Get :
-  WpMethodCall (ptrT.id sharded_hashmap.entryShard.id) "Get" _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_entryShard'ptr_Store :
-  WpMethodCall (ptrT.id sharded_hashmap.entryShard.id) "Store" _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_Load :
-  WpMethodCall (ptrT.id sharded_hashmap.HashMap.id) "Load" _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_Store :
-  WpMethodCall (ptrT.id sharded_hashmap.HashMap.id) "Store" _ (is_pkg_defined sharded_hashmap) :=
-  ltac:(solve_wp_method_call).
-
-End names.
 End sharded_hashmap.

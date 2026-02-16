@@ -2,204 +2,105 @@
 Require Export New.proof.proof_prelude.
 Require Export New.generatedproof.github_com.goose_lang.std.
 Require Export New.golang.theory.
-
 Require Export New.code.sys_verif_code.memoize.
 
 Set Default Proof Using "Type".
 
 Module memoize.
-
-(* type memoize.Memoize *)
 Module Memoize.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  f' : func.t;
-  results' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : memoize.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance Memoize_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (memoize.Memoize.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "f" ∷ l.[(memoize.Memoize.t), "f"] ↦{dq} v.(memoize.Memoize.f') ∗
+      "results" ∷ l.[(memoize.Memoize.t), "results"] ↦{dq} v.(memoize.Memoize.results') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance Memoize_into_val_typed
+   :
+  IntoValTypedUnderlying (memoize.Memoize.t) (memoize.Memoizeⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance Memoize_access_load_f l (v : (memoize.Memoize.t)) dq :
+  AccessStrict
+    (l.[(memoize.Memoize.t), "f"] ↦{dq} (v.(memoize.Memoize.f')))
+    (l.[(memoize.Memoize.t), "f"] ↦{dq} (v.(memoize.Memoize.f')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Memoize_access_store_f l (v : (memoize.Memoize.t)) f' :
+  AccessStrict
+    (l.[(memoize.Memoize.t), "f"] ↦ (v.(memoize.Memoize.f')))
+    (l.[(memoize.Memoize.t), "f"] ↦ f')
+    (l ↦ v) (l ↦ (v <|(memoize.Memoize.f') := f'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance Memoize_access_load_results l (v : (memoize.Memoize.t)) dq :
+  AccessStrict
+    (l.[(memoize.Memoize.t), "results"] ↦{dq} (v.(memoize.Memoize.results')))
+    (l.[(memoize.Memoize.t), "results"] ↦{dq} (v.(memoize.Memoize.results')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Memoize_access_store_results l (v : (memoize.Memoize.t)) results' :
+  AccessStrict
+    (l.[(memoize.Memoize.t), "results"] ↦ (v.(memoize.Memoize.results')))
+    (l.[(memoize.Memoize.t), "results"] ↦ results')
+    (l ↦ v) (l ↦ (v <|(memoize.Memoize.results') := results'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End Memoize.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent memoize.Memoize.
-#[local] Typeclasses Transparent memoize.Memoize.
-
-Global Instance Memoize_wf : struct.Wf memoize.Memoize.
-Proof. apply _. Qed.
-
-Global Instance settable_Memoize : Settable Memoize.t :=
-  settable! Memoize.mk < Memoize.f'; Memoize.results' >.
-Global Instance into_val_Memoize : IntoVal Memoize.t :=
-  {| to_val_def v :=
-    struct.val_aux memoize.Memoize [
-    "f" ::= #(Memoize.f' v);
-    "results" ::= #(Memoize.results' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_Memoize : IntoValTyped Memoize.t memoize.Memoize :=
-{|
-  default_val := Memoize.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_Memoize_f : IntoValStructField "f" memoize.Memoize Memoize.f'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_Memoize_results : IntoValStructField "results" memoize.Memoize Memoize.results'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_Memoize f' results':
-  PureWp True
-    (struct.make #memoize.Memoize (alist_val [
-      "f" ::= #f';
-      "results" ::= #results'
-    ]))%struct
-    #(Memoize.mk f' results').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance Memoize_struct_fields_split dq l (v : Memoize.t) :
-  StructFieldsSplit dq l v (
-    "Hf" ∷ l ↦s[memoize.Memoize :: "f"]{dq} v.(Memoize.f') ∗
-    "Hresults" ∷ l ↦s[memoize.Memoize :: "results"]{dq} v.(Memoize.results')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (Memoize.f' v)) (memoize.Memoize) "f"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type memoize.MockMemoize *)
 Module MockMemoize.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  f' : func.t;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : memoize.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance MockMemoize_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (memoize.MockMemoize.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "f" ∷ l.[(memoize.MockMemoize.t), "f"] ↦{dq} v.(memoize.MockMemoize.f') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance MockMemoize_into_val_typed
+   :
+  IntoValTypedUnderlying (memoize.MockMemoize.t) (memoize.MockMemoizeⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance MockMemoize_access_load_f l (v : (memoize.MockMemoize.t)) dq :
+  AccessStrict
+    (l.[(memoize.MockMemoize.t), "f"] ↦{dq} (v.(memoize.MockMemoize.f')))
+    (l.[(memoize.MockMemoize.t), "f"] ↦{dq} (v.(memoize.MockMemoize.f')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance MockMemoize_access_store_f l (v : (memoize.MockMemoize.t)) f' :
+  AccessStrict
+    (l.[(memoize.MockMemoize.t), "f"] ↦ (v.(memoize.MockMemoize.f')))
+    (l.[(memoize.MockMemoize.t), "f"] ↦ f')
+    (l ↦ v) (l ↦ (v <|(memoize.MockMemoize.f') := f'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End MockMemoize.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent memoize.MockMemoize.
-#[local] Typeclasses Transparent memoize.MockMemoize.
-
-Global Instance MockMemoize_wf : struct.Wf memoize.MockMemoize.
-Proof. apply _. Qed.
-
-Global Instance settable_MockMemoize : Settable MockMemoize.t :=
-  settable! MockMemoize.mk < MockMemoize.f' >.
-Global Instance into_val_MockMemoize : IntoVal MockMemoize.t :=
-  {| to_val_def v :=
-    struct.val_aux memoize.MockMemoize [
-    "f" ::= #(MockMemoize.f' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_MockMemoize : IntoValTyped MockMemoize.t memoize.MockMemoize :=
-{|
-  default_val := MockMemoize.mk (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_MockMemoize_f : IntoValStructField "f" memoize.MockMemoize MockMemoize.f'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_MockMemoize f':
-  PureWp True
-    (struct.make #memoize.MockMemoize (alist_val [
-      "f" ::= #f'
-    ]))%struct
-    #(MockMemoize.mk f').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance MockMemoize_struct_fields_split dq l (v : MockMemoize.t) :
-  StructFieldsSplit dq l v (
-    "Hf" ∷ l ↦s[memoize.MockMemoize :: "f"]{dq} v.(MockMemoize.f')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-Section names.
-
-Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context `{!globalsGS Σ}.
-Context {go_ctx : GoContext}.
-#[local] Transparent is_pkg_defined is_pkg_defined_pure.
-
-Global Instance is_pkg_defined_pure_memoize : IsPkgDefinedPure memoize :=
-  {|
-    is_pkg_defined_pure_def go_ctx :=
-      is_pkg_defined_pure_single memoize ∧
-      is_pkg_defined_pure code.github_com.goose_lang.std.std;
-  |}.
-
-#[local] Transparent is_pkg_defined_single is_pkg_defined_pure_single.
-Global Program Instance is_pkg_defined_memoize : IsPkgDefined memoize :=
-  {|
-    is_pkg_defined_def go_ctx :=
-      (is_pkg_defined_single memoize ∗
-       is_pkg_defined code.github_com.goose_lang.std.std)%I
-  |}.
-Final Obligation. iIntros. iFrame "#%". Qed.
-#[local] Opaque is_pkg_defined_single is_pkg_defined_pure_single.
-
-Global Instance wp_func_call_NewMemoize :
-  WpFuncCall memoize.NewMemoize _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_UseMemoize1 :
-  WpFuncCall memoize.UseMemoize1 _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_UseMemoize2 :
-  WpFuncCall memoize.UseMemoize2 _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewMockMemoize :
-  WpFuncCall memoize.NewMockMemoize _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_method_call_Memoize_Call :
-  WpMethodCall memoize.Memoize.id "Call" _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Memoize'ptr_Call :
-  WpMethodCall (ptrT.id memoize.Memoize.id) "Call" _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_MockMemoize'ptr_Call :
-  WpMethodCall (ptrT.id memoize.MockMemoize.id) "Call" _ (is_pkg_defined memoize) :=
-  ltac:(solve_wp_method_call).
-
-End names.
 End memoize.

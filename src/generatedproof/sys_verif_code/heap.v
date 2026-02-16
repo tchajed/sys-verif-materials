@@ -2,656 +2,353 @@
 Require Export New.proof.proof_prelude.
 Require Export New.generatedproof.github_com.goose_lang.std.
 Require Export New.golang.theory.
-
 Require Export New.code.sys_verif_code.heap.
 
 Set Default Proof Using "Type".
 
 Module heap.
-
-(* type heap.S1 *)
 Module S1.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  a' : w64;
-  b' : slice.t;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance S1_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.S1.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "a" ∷ l.[(heap.S1.t), "a"] ↦{dq} v.(heap.S1.a') ∗
+      "b" ∷ l.[(heap.S1.t), "b"] ↦{dq} v.(heap.S1.b') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance S1_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.S1.t) (heap.S1ⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance S1_access_load_a l (v : (heap.S1.t)) dq :
+  AccessStrict
+    (l.[(heap.S1.t), "a"] ↦{dq} (v.(heap.S1.a')))
+    (l.[(heap.S1.t), "a"] ↦{dq} (v.(heap.S1.a')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance S1_access_store_a l (v : (heap.S1.t)) a' :
+  AccessStrict
+    (l.[(heap.S1.t), "a"] ↦ (v.(heap.S1.a')))
+    (l.[(heap.S1.t), "a"] ↦ a')
+    (l ↦ v) (l ↦ (v <|(heap.S1.a') := a'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance S1_access_load_b l (v : (heap.S1.t)) dq :
+  AccessStrict
+    (l.[(heap.S1.t), "b"] ↦{dq} (v.(heap.S1.b')))
+    (l.[(heap.S1.t), "b"] ↦{dq} (v.(heap.S1.b')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance S1_access_store_b l (v : (heap.S1.t)) b' :
+  AccessStrict
+    (l.[(heap.S1.t), "b"] ↦ (v.(heap.S1.b')))
+    (l.[(heap.S1.t), "b"] ↦ b')
+    (l ↦ v) (l ↦ (v <|(heap.S1.b') := b'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End S1.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.S1.
-#[local] Typeclasses Transparent heap.S1.
-
-Global Instance S1_wf : struct.Wf heap.S1.
-Proof. apply _. Qed.
-
-Global Instance settable_S1 : Settable S1.t :=
-  settable! S1.mk < S1.a'; S1.b' >.
-Global Instance into_val_S1 : IntoVal S1.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.S1 [
-    "a" ::= #(S1.a' v);
-    "b" ::= #(S1.b' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_S1 : IntoValTyped S1.t heap.S1 :=
-{|
-  default_val := S1.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_S1_a : IntoValStructField "a" heap.S1 S1.a'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_S1_b : IntoValStructField "b" heap.S1 S1.b'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_S1 a' b':
-  PureWp True
-    (struct.make #heap.S1 (alist_val [
-      "a" ::= #a';
-      "b" ::= #b'
-    ]))%struct
-    #(S1.mk a' b').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance S1_struct_fields_split dq l (v : S1.t) :
-  StructFieldsSplit dq l v (
-    "Ha" ∷ l ↦s[heap.S1 :: "a"]{dq} v.(S1.a') ∗
-    "Hb" ∷ l ↦s[heap.S1 :: "b"]{dq} v.(S1.b')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (S1.a' v)) (heap.S1) "a"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type heap.Stack *)
 Module Stack.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  elements' : slice.t;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance Stack_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.Stack.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "elements" ∷ l.[(heap.Stack.t), "elements"] ↦{dq} v.(heap.Stack.elements') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance Stack_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.Stack.t) (heap.Stackⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance Stack_access_load_elements l (v : (heap.Stack.t)) dq :
+  AccessStrict
+    (l.[(heap.Stack.t), "elements"] ↦{dq} (v.(heap.Stack.elements')))
+    (l.[(heap.Stack.t), "elements"] ↦{dq} (v.(heap.Stack.elements')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Stack_access_store_elements l (v : (heap.Stack.t)) elements' :
+  AccessStrict
+    (l.[(heap.Stack.t), "elements"] ↦ (v.(heap.Stack.elements')))
+    (l.[(heap.Stack.t), "elements"] ↦ elements')
+    (l ↦ v) (l ↦ (v <|(heap.Stack.elements') := elements'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End Stack.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.Stack.
-#[local] Typeclasses Transparent heap.Stack.
-
-Global Instance Stack_wf : struct.Wf heap.Stack.
-Proof. apply _. Qed.
-
-Global Instance settable_Stack : Settable Stack.t :=
-  settable! Stack.mk < Stack.elements' >.
-Global Instance into_val_Stack : IntoVal Stack.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.Stack [
-    "elements" ::= #(Stack.elements' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_Stack : IntoValTyped Stack.t heap.Stack :=
-{|
-  default_val := Stack.mk (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_Stack_elements : IntoValStructField "elements" heap.Stack Stack.elements'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_Stack elements':
-  PureWp True
-    (struct.make #heap.Stack (alist_val [
-      "elements" ::= #elements'
-    ]))%struct
-    #(Stack.mk elements').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance Stack_struct_fields_split dq l (v : Stack.t) :
-  StructFieldsSplit dq l v (
-    "Helements" ∷ l ↦s[heap.Stack :: "elements"]{dq} v.(Stack.elements')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type heap.Queue *)
 Module Queue.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  back' : loc;
-  front' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance Queue_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.Queue.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "back" ∷ l.[(heap.Queue.t), "back"] ↦{dq} v.(heap.Queue.back') ∗
+      "front" ∷ l.[(heap.Queue.t), "front"] ↦{dq} v.(heap.Queue.front') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance Queue_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.Queue.t) (heap.Queueⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance Queue_access_load_back l (v : (heap.Queue.t)) dq :
+  AccessStrict
+    (l.[(heap.Queue.t), "back"] ↦{dq} (v.(heap.Queue.back')))
+    (l.[(heap.Queue.t), "back"] ↦{dq} (v.(heap.Queue.back')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Queue_access_store_back l (v : (heap.Queue.t)) back' :
+  AccessStrict
+    (l.[(heap.Queue.t), "back"] ↦ (v.(heap.Queue.back')))
+    (l.[(heap.Queue.t), "back"] ↦ back')
+    (l ↦ v) (l ↦ (v <|(heap.Queue.back') := back'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance Queue_access_load_front l (v : (heap.Queue.t)) dq :
+  AccessStrict
+    (l.[(heap.Queue.t), "front"] ↦{dq} (v.(heap.Queue.front')))
+    (l.[(heap.Queue.t), "front"] ↦{dq} (v.(heap.Queue.front')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Queue_access_store_front l (v : (heap.Queue.t)) front' :
+  AccessStrict
+    (l.[(heap.Queue.t), "front"] ↦ (v.(heap.Queue.front')))
+    (l.[(heap.Queue.t), "front"] ↦ front')
+    (l ↦ v) (l ↦ (v <|(heap.Queue.front') := front'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End Queue.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.Queue.
-#[local] Typeclasses Transparent heap.Queue.
-
-Global Instance Queue_wf : struct.Wf heap.Queue.
-Proof. apply _. Qed.
-
-Global Instance settable_Queue : Settable Queue.t :=
-  settable! Queue.mk < Queue.back'; Queue.front' >.
-Global Instance into_val_Queue : IntoVal Queue.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.Queue [
-    "back" ::= #(Queue.back' v);
-    "front" ::= #(Queue.front' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_Queue : IntoValTyped Queue.t heap.Queue :=
-{|
-  default_val := Queue.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_Queue_back : IntoValStructField "back" heap.Queue Queue.back'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_Queue_front : IntoValStructField "front" heap.Queue Queue.front'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_Queue back' front':
-  PureWp True
-    (struct.make #heap.Queue (alist_val [
-      "back" ::= #back';
-      "front" ::= #front'
-    ]))%struct
-    #(Queue.mk back' front').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance Queue_struct_fields_split dq l (v : Queue.t) :
-  StructFieldsSplit dq l v (
-    "Hback" ∷ l ↦s[heap.Queue :: "back"]{dq} v.(Queue.back') ∗
-    "Hfront" ∷ l ↦s[heap.Queue :: "front"]{dq} v.(Queue.front')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (Queue.back' v)) (heap.Queue) "back"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type heap.SearchTree *)
 Module SearchTree.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  key' : w64;
-  left' : loc;
-  right' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance SearchTree_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.SearchTree.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "key" ∷ l.[(heap.SearchTree.t), "key"] ↦{dq} v.(heap.SearchTree.key') ∗
+      "left" ∷ l.[(heap.SearchTree.t), "left"] ↦{dq} v.(heap.SearchTree.left') ∗
+      "right" ∷ l.[(heap.SearchTree.t), "right"] ↦{dq} v.(heap.SearchTree.right') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance SearchTree_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.SearchTree.t) (heap.SearchTreeⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance SearchTree_access_load_key l (v : (heap.SearchTree.t)) dq :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "key"] ↦{dq} (v.(heap.SearchTree.key')))
+    (l.[(heap.SearchTree.t), "key"] ↦{dq} (v.(heap.SearchTree.key')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance SearchTree_access_store_key l (v : (heap.SearchTree.t)) key' :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "key"] ↦ (v.(heap.SearchTree.key')))
+    (l.[(heap.SearchTree.t), "key"] ↦ key')
+    (l ↦ v) (l ↦ (v <|(heap.SearchTree.key') := key'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance SearchTree_access_load_left l (v : (heap.SearchTree.t)) dq :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "left"] ↦{dq} (v.(heap.SearchTree.left')))
+    (l.[(heap.SearchTree.t), "left"] ↦{dq} (v.(heap.SearchTree.left')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance SearchTree_access_store_left l (v : (heap.SearchTree.t)) left' :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "left"] ↦ (v.(heap.SearchTree.left')))
+    (l.[(heap.SearchTree.t), "left"] ↦ left')
+    (l ↦ v) (l ↦ (v <|(heap.SearchTree.left') := left'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance SearchTree_access_load_right l (v : (heap.SearchTree.t)) dq :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "right"] ↦{dq} (v.(heap.SearchTree.right')))
+    (l.[(heap.SearchTree.t), "right"] ↦{dq} (v.(heap.SearchTree.right')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance SearchTree_access_store_right l (v : (heap.SearchTree.t)) right' :
+  AccessStrict
+    (l.[(heap.SearchTree.t), "right"] ↦ (v.(heap.SearchTree.right')))
+    (l.[(heap.SearchTree.t), "right"] ↦ right')
+    (l ↦ v) (l ↦ (v <|(heap.SearchTree.right') := right'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End SearchTree.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.SearchTree.
-#[local] Typeclasses Transparent heap.SearchTree.
-
-Global Instance SearchTree_wf : struct.Wf heap.SearchTree.
-Proof. apply _. Qed.
-
-Global Instance settable_SearchTree : Settable SearchTree.t :=
-  settable! SearchTree.mk < SearchTree.key'; SearchTree.left'; SearchTree.right' >.
-Global Instance into_val_SearchTree : IntoVal SearchTree.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.SearchTree [
-    "key" ::= #(SearchTree.key' v);
-    "left" ::= #(SearchTree.left' v);
-    "right" ::= #(SearchTree.right' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_SearchTree : IntoValTyped SearchTree.t heap.SearchTree :=
-{|
-  default_val := SearchTree.mk (default_val _) (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_SearchTree_key : IntoValStructField "key" heap.SearchTree SearchTree.key'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_SearchTree_left : IntoValStructField "left" heap.SearchTree SearchTree.left'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_SearchTree_right : IntoValStructField "right" heap.SearchTree SearchTree.right'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_SearchTree key' left' right':
-  PureWp True
-    (struct.make #heap.SearchTree (alist_val [
-      "key" ::= #key';
-      "left" ::= #left';
-      "right" ::= #right'
-    ]))%struct
-    #(SearchTree.mk key' left' right').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance SearchTree_struct_fields_split dq l (v : SearchTree.t) :
-  StructFieldsSplit dq l v (
-    "Hkey" ∷ l ↦s[heap.SearchTree :: "key"]{dq} v.(SearchTree.key') ∗
-    "Hleft" ∷ l ↦s[heap.SearchTree :: "left"]{dq} v.(SearchTree.left') ∗
-    "Hright" ∷ l ↦s[heap.SearchTree :: "right"]{dq} v.(SearchTree.right')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (SearchTree.key' v)) (heap.SearchTree) "key"%go.
-  simpl_one_flatten_struct (# (SearchTree.left' v)) (heap.SearchTree) "left"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type heap.Person *)
 Module Person.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  FirstName' : go_string;
-  LastName' : go_string;
-  Age' : w64;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance Person_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.Person.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "FirstName" ∷ l.[(heap.Person.t), "FirstName"] ↦{dq} v.(heap.Person.FirstName') ∗
+      "LastName" ∷ l.[(heap.Person.t), "LastName"] ↦{dq} v.(heap.Person.LastName') ∗
+      "Age" ∷ l.[(heap.Person.t), "Age"] ↦{dq} v.(heap.Person.Age') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance Person_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.Person.t) (heap.Personⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance Person_access_load_FirstName l (v : (heap.Person.t)) dq :
+  AccessStrict
+    (l.[(heap.Person.t), "FirstName"] ↦{dq} (v.(heap.Person.FirstName')))
+    (l.[(heap.Person.t), "FirstName"] ↦{dq} (v.(heap.Person.FirstName')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Person_access_store_FirstName l (v : (heap.Person.t)) FirstName' :
+  AccessStrict
+    (l.[(heap.Person.t), "FirstName"] ↦ (v.(heap.Person.FirstName')))
+    (l.[(heap.Person.t), "FirstName"] ↦ FirstName')
+    (l ↦ v) (l ↦ (v <|(heap.Person.FirstName') := FirstName'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance Person_access_load_LastName l (v : (heap.Person.t)) dq :
+  AccessStrict
+    (l.[(heap.Person.t), "LastName"] ↦{dq} (v.(heap.Person.LastName')))
+    (l.[(heap.Person.t), "LastName"] ↦{dq} (v.(heap.Person.LastName')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Person_access_store_LastName l (v : (heap.Person.t)) LastName' :
+  AccessStrict
+    (l.[(heap.Person.t), "LastName"] ↦ (v.(heap.Person.LastName')))
+    (l.[(heap.Person.t), "LastName"] ↦ LastName')
+    (l ↦ v) (l ↦ (v <|(heap.Person.LastName') := LastName'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance Person_access_load_Age l (v : (heap.Person.t)) dq :
+  AccessStrict
+    (l.[(heap.Person.t), "Age"] ↦{dq} (v.(heap.Person.Age')))
+    (l.[(heap.Person.t), "Age"] ↦{dq} (v.(heap.Person.Age')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Person_access_store_Age l (v : (heap.Person.t)) Age' :
+  AccessStrict
+    (l.[(heap.Person.t), "Age"] ↦ (v.(heap.Person.Age')))
+    (l.[(heap.Person.t), "Age"] ↦ Age')
+    (l ↦ v) (l ↦ (v <|(heap.Person.Age') := Age'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End Person.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.Person.
-#[local] Typeclasses Transparent heap.Person.
-
-Global Instance Person_wf : struct.Wf heap.Person.
-Proof. apply _. Qed.
-
-Global Instance settable_Person : Settable Person.t :=
-  settable! Person.mk < Person.FirstName'; Person.LastName'; Person.Age' >.
-Global Instance into_val_Person : IntoVal Person.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.Person [
-    "FirstName" ::= #(Person.FirstName' v);
-    "LastName" ::= #(Person.LastName' v);
-    "Age" ::= #(Person.Age' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_Person : IntoValTyped Person.t heap.Person :=
-{|
-  default_val := Person.mk (default_val _) (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_Person_FirstName : IntoValStructField "FirstName" heap.Person Person.FirstName'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_Person_LastName : IntoValStructField "LastName" heap.Person Person.LastName'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_Person_Age : IntoValStructField "Age" heap.Person Person.Age'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_Person FirstName' LastName' Age':
-  PureWp True
-    (struct.make #heap.Person (alist_val [
-      "FirstName" ::= #FirstName';
-      "LastName" ::= #LastName';
-      "Age" ::= #Age'
-    ]))%struct
-    #(Person.mk FirstName' LastName' Age').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance Person_struct_fields_split dq l (v : Person.t) :
-  StructFieldsSplit dq l v (
-    "HFirstName" ∷ l ↦s[heap.Person :: "FirstName"]{dq} v.(Person.FirstName') ∗
-    "HLastName" ∷ l ↦s[heap.Person :: "LastName"]{dq} v.(Person.LastName') ∗
-    "HAge" ∷ l ↦s[heap.Person :: "Age"]{dq} v.(Person.Age')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (Person.FirstName' v)) (heap.Person) "FirstName"%go.
-  simpl_one_flatten_struct (# (Person.LastName' v)) (heap.Person) "LastName"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type heap.Rect *)
 Module Rect.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  Width' : w64;
-  Height' : w64;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : heap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance Rect_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (heap.Rect.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "Width" ∷ l.[(heap.Rect.t), "Width"] ↦{dq} v.(heap.Rect.Width') ∗
+      "Height" ∷ l.[(heap.Rect.t), "Height"] ↦{dq} v.(heap.Rect.Height') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance Rect_into_val_typed
+   :
+  IntoValTypedUnderlying (heap.Rect.t) (heap.Rectⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance Rect_access_load_Width l (v : (heap.Rect.t)) dq :
+  AccessStrict
+    (l.[(heap.Rect.t), "Width"] ↦{dq} (v.(heap.Rect.Width')))
+    (l.[(heap.Rect.t), "Width"] ↦{dq} (v.(heap.Rect.Width')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Rect_access_store_Width l (v : (heap.Rect.t)) Width' :
+  AccessStrict
+    (l.[(heap.Rect.t), "Width"] ↦ (v.(heap.Rect.Width')))
+    (l.[(heap.Rect.t), "Width"] ↦ Width')
+    (l ↦ v) (l ↦ (v <|(heap.Rect.Width') := Width'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance Rect_access_load_Height l (v : (heap.Rect.t)) dq :
+  AccessStrict
+    (l.[(heap.Rect.t), "Height"] ↦{dq} (v.(heap.Rect.Height')))
+    (l.[(heap.Rect.t), "Height"] ↦{dq} (v.(heap.Rect.Height')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance Rect_access_store_Height l (v : (heap.Rect.t)) Height' :
+  AccessStrict
+    (l.[(heap.Rect.t), "Height"] ↦ (v.(heap.Rect.Height')))
+    (l.[(heap.Rect.t), "Height"] ↦ Height')
+    (l ↦ v) (l ↦ (v <|(heap.Rect.Height') := Height'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End Rect.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent heap.Rect.
-#[local] Typeclasses Transparent heap.Rect.
-
-Global Instance Rect_wf : struct.Wf heap.Rect.
-Proof. apply _. Qed.
-
-Global Instance settable_Rect : Settable Rect.t :=
-  settable! Rect.mk < Rect.Width'; Rect.Height' >.
-Global Instance into_val_Rect : IntoVal Rect.t :=
-  {| to_val_def v :=
-    struct.val_aux heap.Rect [
-    "Width" ::= #(Rect.Width' v);
-    "Height" ::= #(Rect.Height' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_Rect : IntoValTyped Rect.t heap.Rect :=
-{|
-  default_val := Rect.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_Rect_Width : IntoValStructField "Width" heap.Rect Rect.Width'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_Rect_Height : IntoValStructField "Height" heap.Rect Rect.Height'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_Rect Width' Height':
-  PureWp True
-    (struct.make #heap.Rect (alist_val [
-      "Width" ::= #Width';
-      "Height" ::= #Height'
-    ]))%struct
-    #(Rect.mk Width' Height').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance Rect_struct_fields_split dq l (v : Rect.t) :
-  StructFieldsSplit dq l v (
-    "HWidth" ∷ l ↦s[heap.Rect :: "Width"]{dq} v.(Rect.Width') ∗
-    "HHeight" ∷ l ↦s[heap.Rect :: "Height"]{dq} v.(Rect.Height')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (Rect.Width' v)) (heap.Rect) "Width"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-Section names.
-
-Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context `{!globalsGS Σ}.
-Context {go_ctx : GoContext}.
-#[local] Transparent is_pkg_defined is_pkg_defined_pure.
-
-Global Instance is_pkg_defined_pure_heap : IsPkgDefinedPure heap :=
-  {|
-    is_pkg_defined_pure_def go_ctx :=
-      is_pkg_defined_pure_single heap ∧
-      is_pkg_defined_pure code.github_com.goose_lang.std.std;
-  |}.
-
-#[local] Transparent is_pkg_defined_single is_pkg_defined_pure_single.
-Global Program Instance is_pkg_defined_heap : IsPkgDefined heap :=
-  {|
-    is_pkg_defined_def go_ctx :=
-      (is_pkg_defined_single heap ∗
-       is_pkg_defined code.github_com.goose_lang.std.std)%I
-  |}.
-Final Obligation. iIntros. iFrame "#%". Qed.
-#[local] Opaque is_pkg_defined_single is_pkg_defined_pure_single.
-
-Global Instance wp_func_call_BinarySearch :
-  WpFuncCall heap.BinarySearch _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleA :
-  WpFuncCall heap.ExampleA _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleB :
-  WpFuncCall heap.ExampleB _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleC :
-  WpFuncCall heap.ExampleC _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleD :
-  WpFuncCall heap.ExampleD _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleE :
-  WpFuncCall heap.ExampleE _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_collatzF :
-  WpFuncCall heap.collatzF _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_collatzIter :
-  WpFuncCall heap.collatzIter _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExampleG :
-  WpFuncCall heap.ExampleG _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_Swap :
-  WpFuncCall heap.Swap _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_IgnoreOne :
-  WpFuncCall heap.IgnoreOne _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_UseIgnoreOneOwnership :
-  WpFuncCall heap.UseIgnoreOneOwnership _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_CopySlice :
-  WpFuncCall heap.CopySlice _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_StackEscape :
-  WpFuncCall heap.StackEscape _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_SliceSwap :
-  WpFuncCall heap.SliceSwap _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_FindMajority :
-  WpFuncCall heap.FindMajority _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewStack :
-  WpFuncCall heap.NewStack _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewQueue :
-  WpFuncCall heap.NewQueue _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewSearchTree :
-  WpFuncCall heap.NewSearchTree _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_singletonTree :
-  WpFuncCall heap.singletonTree _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExamplePerson :
-  WpFuncCall heap.ExamplePerson _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_ExamplePersonRef :
-  WpFuncCall heap.ExamplePersonRef _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_IsSquare :
-  WpFuncCall heap.IsSquare _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_Rotate :
-  WpFuncCall heap.Rotate _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_method_call_Stack'ptr_Pop :
-  WpMethodCall (ptrT.id heap.Stack.id) "Pop" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Stack'ptr_Push :
-  WpMethodCall (ptrT.id heap.Stack.id) "Push" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue_Pop :
-  WpMethodCall heap.Queue.id "Pop" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue_Push :
-  WpMethodCall heap.Queue.id "Push" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue_emptyBack :
-  WpMethodCall heap.Queue.id "emptyBack" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue'ptr_Pop :
-  WpMethodCall (ptrT.id heap.Queue.id) "Pop" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue'ptr_Push :
-  WpMethodCall (ptrT.id heap.Queue.id) "Push" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Queue'ptr_emptyBack :
-  WpMethodCall (ptrT.id heap.Queue.id) "emptyBack" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_SearchTree'ptr_Contains :
-  WpMethodCall (ptrT.id heap.SearchTree.id) "Contains" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_SearchTree'ptr_Insert :
-  WpMethodCall (ptrT.id heap.SearchTree.id) "Insert" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person_BuggySetAge :
-  WpMethodCall heap.Person.id "BuggySetAge" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person_Name :
-  WpMethodCall heap.Person.id "Name" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person'ptr_BuggySetAge :
-  WpMethodCall (ptrT.id heap.Person.id) "BuggySetAge" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person'ptr_GetAge :
-  WpMethodCall (ptrT.id heap.Person.id) "GetAge" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person'ptr_Name :
-  WpMethodCall (ptrT.id heap.Person.id) "Name" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Person'ptr_Older :
-  WpMethodCall (ptrT.id heap.Person.id) "Older" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Rect'ptr_Area :
-  WpMethodCall (ptrT.id heap.Rect.id) "Area" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_Rect'ptr_MakeSquare :
-  WpMethodCall (ptrT.id heap.Rect.id) "MakeSquare" _ (is_pkg_defined heap) :=
-  ltac:(solve_wp_method_call).
-
-End names.
 End heap.
