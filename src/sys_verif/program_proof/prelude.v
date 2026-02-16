@@ -1,5 +1,6 @@
 (* slightly extend Perennial's proof setup *)
 From New.proof Require Export proof_prelude.
+From New.golang Require Export theory.
 From iris_named_props Require Import named_props.
 From sys_verif Require Export options.
 From Coq Require Import Strings.Ascii.
@@ -19,7 +20,7 @@ Notation "|={ E }=>​ Q" := (ncfupd E E Q) (only printing, at level 200, E at l
 Notation "|==>​ Q" := (ncfupd ⊤ ⊤ Q) (only printing, at level 200) : bi_scope.
 
 Ltac wp_finish :=
-  wp_pures;
+  wp_auto;
   repeat iModIntro;
   first [
       iApply "HΦ" |

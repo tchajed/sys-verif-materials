@@ -203,7 +203,7 @@ Definition Arithⁱᵐᵖˡ : val :=
 
 Note the `exception_do` wrapper, which is used to implement the control flow for function returns: a `return: e` expression inside will return early, preventing execution of code afterward. On the other hand `do: e` will run as normal and proceed to the next line. This sequencing-with-return is implemented by `;;;`, which is _not_ the same as the usual sequencing `;;`.
 
-As a user of goose, the implementation of these control flow constructs is largely invisible --- In proofs, `wp_pures` (which is called by `wp_auto`) will "step" over control flow as needed. `wp_apply` will work inside the `exception_do` wrapper. If you want an idea of the semantics of these operations, see the comments in Perennial's [defn/exception.v](https://github.com/mit-pdos/perennial/blob/master/new/golang/defn/exception.v).
+As a user of goose, the implementation of these control flow constructs is largely invisible --- In proofs, `wp_auto` (which is called by `wp_auto`) will "step" over control flow as needed. `wp_apply` will work inside the `exception_do` wrapper. If you want an idea of the semantics of these operations, see the comments in Perennial's [defn/exception.v](https://github.com/mit-pdos/perennial/blob/master/new/golang/defn/exception.v).
 
 The first thing the code does within the `exception_do` is to allocate `"a"` and `"b"` on the heap for the function arguments, as we saw in the previous example.
 

@@ -55,7 +55,7 @@ func (i *AtomicInt) Inc(y uint64) {
 
 Let's remember what the spec would look like without concurrency. Suppose we re-implemented this code with the same API but with a struct `SequentialInt` with a single integer field `x` - no locks, and the caller would not be allowed to share the data structure between threads.
 
-We would start with a predicate `int_rep (l: loc) (x: w64) : iProp Σ` that related a pointer to an integer in GooseLang to an abstract value. We choose to use `w64` as the abstract value, but it could also be `Z`; this spec has the advantage that it automatically guarantees the value of the integer is less than $2^{64}$. The predicate would be very simple: `int_rep l x := l ↦s[SequentialInt :: "x"] x` would be enough.
+We would start with a predicate `int_rep (l: loc) (x: w64) : iProp Σ` that related a pointer to an integer in GooseLang to an abstract value. We choose to use `w64` as the abstract value, but it could also be `Z`; this spec has the advantage that it automatically guarantees the value of the integer is less than $2^{64}$. The predicate would be very simple: `int_rep l x := l.[SequentialInt.t, "x"] ↦ x` would be enough.
 
 Then the specification for `wp_SequentialInt__Inc` would say
 
@@ -133,12 +133,12 @@ Proof. apply _. Qed.
 (* this is local because even the existence of this predicate is not important to the user *)
 #[local] Definition lock_inv γ (l: loc) : iProp _ :=
   ∃ (x: w64),
-      "Hx" ∷ l ↦s[concurrent.AtomicInt :: "x"] x ∗
+      "Hx" ∷ l.[concurrent.AtomicInt.t, "x"] ↦ x ∗
       "Hauth" ∷ ghost_var γ (DfracOwn (1/2)) x.
 
 Definition is_atomic_int γ (l: loc) : iProp _ :=
   ∃ (mu_l: loc),
-  "mu" ∷ l ↦s[concurrent.AtomicInt :: "mu"]□ mu_l ∗
+  "mu" ∷ l.[concurrent.AtomicInt.t, "mu"] ↦□ mu_l ∗
   "Hlock" ∷ is_Mutex mu_l (lock_inv γ l).
 
 #[global] Opaque is_atomic_int.
@@ -173,7 +173,7 @@ Qed.
 Lemma wp_AtomicInt__Inc_sequential_spec γ l (x y: w64) :
   {{{ is_pkg_init concurrent ∗ is_atomic_int γ l ∗
         own_int γ x }}}
-    l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y
+    l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y
   {{{ RET #(); own_int γ (word.add x y) }}}.
 Proof.
   wp_start as "[#Hint Hown]".
@@ -195,7 +195,7 @@ Proof.
   { (* re-prove the lock invariant; this only works because of the ghost var update *)
     iFrame. }
 
-  wp_pures.
+  wp_auto.
   iApply "HΦ".
   done.
 Qed.
@@ -221,7 +221,7 @@ Lemma wp_AtomicInt__Get_triple γ l (Q: w64 → iProp Σ) :
   {{{ is_pkg_init concurrent ∗
   is_atomic_int γ l ∗
   |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ x ={∅,⊤}=∗ Q x) }}}
-    l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #()
+    l @! (go.PointerType concurrent.AtomicInt) @! "Get" #()
   {{{ (x: w64), RET #x; Q x }}}.
 Proof.
   wp_start as "(#Hint & Hau)".
@@ -261,7 +261,7 @@ Lemma wp_AtomicInt__Get γ l :
   (is_pkg_init concurrent ∗
   is_atomic_int γ l ∗
   |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ x ={∅,⊤}=∗ Φ #x)) -∗
-  WP l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #() {{ Φ }}.
+  WP l @! (go.PointerType concurrent.AtomicInt) @! "Get" #() {{ Φ }}.
 Proof.
   (* wp_start doesn't support a specification like this (which isn't quite a Hoare triple) *)
   iIntros (Φ) "(#? & #Hint & Hau)".
@@ -295,7 +295,7 @@ Lemma wp_AtomicInt__Inc γ l (y: w64) :
   ∀ Φ,
   (is_pkg_init concurrent ∗ is_atomic_int γ l ∗
    |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ (word.add x y) ={∅,⊤}=∗ Φ #())) -∗
-    WP l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y {{ Φ }}.
+    WP l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y {{ Φ }}.
 Proof.
   iIntros (Φ) "(#? & #Hint & Hau)".
   wp_method_call. wp_call.

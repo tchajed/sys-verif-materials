@@ -8,7 +8,7 @@ Section proof.
 
   Definition lock_inv (l: loc) (P: w64 → iProp Σ) : iProp _ :=
     ∃ (x: w64),
-        "Hx" ∷ l ↦s[concurrent.AtomicInt :: "x"] x ∗
+        "Hx" ∷ l.[concurrent.AtomicInt.t, "x"] ↦ x ∗
         "HP" ∷ P x.
 
   (* The namespace of the lock invariant is only relevant when the lock is
@@ -18,7 +18,7 @@ Section proof.
 
   Definition is_atomic_int (l: loc) (P: w64 → iProp Σ): iProp _ :=
     ∃ (mu_l: loc),
-    "mu" ∷ l ↦s[concurrent.AtomicInt :: "mu"]□ mu_l ∗
+    "mu" ∷ l.[concurrent.AtomicInt.t, "mu"] ↦□ mu_l ∗
     "Hlock" ∷ is_Mutex (mu_l) (lock_inv l P).
 
   (* This proof is automatic; we just assert it here. *)
@@ -46,7 +46,7 @@ Section proof.
 
   Lemma wp_AtomicInt__Get l (P: w64 → iProp _) (Q: w64 → iProp Σ) :
     {{{ is_pkg_init concurrent ∗ is_atomic_int l P ∗ (∀ x, P x -∗ |={⊤}=> Q x ∗ P x) }}}
-      l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #()
+      l @! (go.PointerType concurrent.AtomicInt) @! "Get" #()
     {{{ (x: w64), RET #x; Q x }}}.
   Proof.
     wp_start as "[#Hint Hfupd]".
@@ -72,7 +72,7 @@ Section proof.
   Lemma wp_AtomicInt__Inc l (P: w64 → iProp _) (Q: w64 → iProp Σ) (y: w64) :
     {{{ is_pkg_init concurrent ∗ is_atomic_int l P ∗
           (∀ x, P x -∗ |={⊤}=> Q x ∗ P (word.add x y)) }}}
-      l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y
+      l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y
     {{{ (x: w64), RET #(); Q x }}}.
   Proof.
     wp_start as "[#Hint Hfupd]". iNamed "Hint".

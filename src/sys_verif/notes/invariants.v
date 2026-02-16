@@ -116,7 +116,7 @@ Proof.
   wp_auto.
   wp_apply (wp_SetX with "[$x]").
   iIntros "x". (* {GOAL} *)
-  wp_pures.
+  wp_auto.
   iApply "HΦ". done.
 Qed.
 
@@ -139,12 +139,12 @@ Proof.
   specification for Fork is equivalent to the wp-spawn above, but is written in
   continuation-passing style. *)
   wp_apply (wp_fork with "[x]").
-  { wp_pures.
+  { wp_auto.
     wp_apply (wp_SetX with "[$x]"). iIntros "x". (* {GOAL} *)
-    wp_pures.
+    wp_auto.
     done.
   }
-  wp_pures.
+  wp_auto.
   iApply "HΦ". done.
 Qed.
 
@@ -219,8 +219,8 @@ Lemma wp_FirstLock_v1 :
   {{{ (y: w64), RET #y; True }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_pures.
-  wp_alloc_auto; wp_pures. (* {GOAL} *)
+  wp_alloc_auto; wp_auto.
+  wp_alloc_auto; wp_auto. (* {GOAL} *)
 
 (*| Note that the automation has allocated a local variable for the mutex - we have `"m" : m_ptr ↦ default_val Mutex.t`.
 
@@ -261,8 +261,8 @@ Lemma wp_FirstLock_v2 :
   {{{ (y: w64), RET #y; ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝ }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_pures.
-  wp_alloc_auto; wp_pures.
+  wp_alloc_auto; wp_auto.
+  wp_alloc_auto; wp_auto.
   iMod (init_Mutex (∃ (y: w64),
                   "x" :: x_ptr ↦ y ∗
                   "%Hx" :: ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝)%I

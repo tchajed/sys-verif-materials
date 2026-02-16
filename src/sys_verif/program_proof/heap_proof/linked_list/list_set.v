@@ -5,8 +5,8 @@ From New.generatedproof.sys_verif_code Require Import linked_list.
 Section proof.
 Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
 
-#[global] Instance : IsPkgInit linked_list := define_is_pkg_init True%I.
-#[global] Instance : GetIsPkgInitWf linked_list := build_get_is_pkg_init_wf.
+#[global] Instance : IsPkgInit (iProp Σ) linked_list := define_is_pkg_init True%I.
+#[global] Instance : GetIsPkgInitWf (iProp Σ) linked_list := build_get_is_pkg_init_wf.
 
 (* We abbreviate "linked list" to "ll" in some of these definitions to keep
 specs and other theorem statements concise. *)
@@ -20,8 +20,8 @@ Definition ll_rep_pre (ll_rep: loc -d> gset w64 -d> iProp Σ) :
       (⌜l = null ∧ els = ∅⌝) ∨
       (⌜l ≠ null⌝ ∧
          ∃ (x: w64) (next_l: loc) (next_els': gset w64),
-            "Helem" :: l ↦s[linked_list.Node :: "elem"] x ∗
-            "Hnext" :: l ↦s[linked_list.Node :: "next"] next_l ∗
+            "Helem" :: l.[linked_list.Node.t, "elem"] ↦ x ∗
+            "Hnext" :: l.[linked_list.Node.t, "next"] ↦ next_l ∗
             "%Hnext_els'" :: ⌜els = next_els' ∪ {[x]}⌝ ∗
             "Hnext_l" :: ▷ ll_rep next_l next_els'))%I.
 
@@ -51,8 +51,8 @@ Definition ll_rep_non_null l els :
   l ≠ null →
   ll_rep l els ⊣⊢
     ∃ (x: w64) (next_l: loc) (next_els': gset w64),
-      "Helem" :: l ↦s[linked_list.Node :: "elem"] x ∗
-      "Hnext" :: l ↦s[linked_list.Node :: "next"] next_l ∗
+      "Helem" :: l.[linked_list.Node.t, "elem"] ↦ x ∗
+      "Hnext" :: l.[linked_list.Node.t, "next"] ↦ next_l ∗
       "%Hnext_els'" :: ⌜els = next_els' ∪ {[x]}⌝ ∗
       "Hnext_l" :: ▷ ll_rep next_l next_els'.
 Proof.
@@ -75,7 +75,7 @@ Qed.
 
 Lemma wp_Node__Insert (l: loc) (els: gset w64) (elem: w64) :
   {{{ is_pkg_init linked_list ∗ ll_rep l els }}}
-    l @ (ptrT.id linked_list.Node.id) @ "Insert" #elem
+    l @! (go.PointerType linked_list.Node) @! "Insert" #elem
   {{{ (l': loc), RET #l'; ll_rep l' ({[elem]} ∪ els) }}}.
 Proof.
   wp_start as "Hl".
@@ -102,7 +102,7 @@ abstract representation is a `list`) *)
 (* SOLUTION *)
 Lemma wp_Node__Pop (l: loc) (els: gset w64) :
   {{{ is_pkg_init linked_list ∗ ll_rep l els }}}
-    l @ (ptrT.id linked_list.Node.id) @ "Pop" #()
+    l @! (go.PointerType linked_list.Node) @! "Pop" #()
   {{{ (x: w64) (l': loc) (ok: bool), RET (#x, #l', #ok);
       if ok then
         ⌜x ∈ els⌝ ∗
@@ -130,7 +130,7 @@ Abort.
 
 Lemma wp_Node__Contains (l: loc) (els: gset w64) (elem: w64) :
   {{{ is_pkg_init linked_list ∗ ll_rep l els }}}
-    l @ (ptrT.id linked_list.Node.id) @ "Contains" #elem
+    l @! (go.PointerType linked_list.Node) @! "Contains" #elem
   {{{ RET #(bool_decide (elem ∈ els)); ll_rep l els }}}.
 Proof.
   wp_start as "Hl".
@@ -188,7 +188,7 @@ Qed.
 
 Lemma wp_Node__Delete l els (elem: w64) :
   {{{ is_pkg_init linked_list ∗ ll_rep l els }}}
-    l @ (ptrT.id linked_list.Node.id) @ "Delete" #elem
+    l @! (go.PointerType linked_list.Node) @! "Delete" #elem
   {{{ (l': loc), RET #l'; ll_rep l' (els ∖ {[elem]}) }}}.
 Proof.
   iLöb as "IH" forall (l els).
@@ -236,7 +236,7 @@ second list, so [ll_rep l2 els2] is contained within the new [ll_rep l2'
 ...]. *)
 Lemma wp_Node__Append l1 els1 l2 els2 :
   {{{ is_pkg_init linked_list ∗ ll_rep l1 els1 ∗ ll_rep l2 els2 }}}
-    l1 @ (ptrT.id linked_list.Node.id) @ "Append" #l2
+    l1 @! (go.PointerType linked_list.Node) @! "Append" #l2
   {{{ (l2': loc), RET #l2'; ll_rep l1 els1 ∗ ll_rep l2' (els1 ∪ els2) }}}.
 Proof.
   iLöb as "IH" forall (l1 els1).
@@ -255,7 +255,7 @@ Proof.
     wp_apply ("IH" with "[Hnext_l Hl2]").
     { iFrame. }
     iIntros (l2') "[Hl1_next Hl2]".
-    wp_pures.
+    wp_auto.
     wp_alloc l2'' as "Hl2_new".
     iDestruct (typed_pointsto_not_null with "Hl2_new") as %Hnot_null2.
     { reflexivity. }
@@ -284,7 +284,7 @@ promise here that [ll_rep l1 els1] is retained.
  *)
 Lemma wp_Node__Append' l1 els1 l2 els2 :
   {{{ is_pkg_init linked_list ∗ ll_rep l1 els1 ∗ ll_rep l2 els2 }}}
-    l1 @ (ptrT.id linked_list.Node.id) @ "Append" #l2
+    l1 @! (go.PointerType linked_list.Node) @! "Append" #l2
   {{{ (l2': loc), RET #l2'; ll_rep l2' (els1 ∪ els2) }}}.
 Proof.
   iIntros (Φ) "[#Hinit [Hl1 Hl2]] HΦ".

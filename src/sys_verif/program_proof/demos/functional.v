@@ -51,9 +51,9 @@ Section proof.
     wp_func_call. wp_call.
 
     (* wp_auto: *)
-    wp_alloc b_l as "b"; wp_pures.
-    wp_alloc a_l as "a"; wp_pures.
-    wp_load; wp_load; wp_pures.
+    wp_alloc b_l as "b"; wp_auto.
+    wp_alloc a_l as "a"; wp_auto.
+    wp_load; wp_load; wp_auto.
 
     (* wp_finish: *)
     iApply "HΦ".

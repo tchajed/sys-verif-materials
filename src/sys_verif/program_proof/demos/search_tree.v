@@ -50,9 +50,9 @@ See `own_tree_F` for the context of how this is used.
 Definition tree_root (own_tree: loc -d> gset w64 -d> iPropO Σ)
   (l: loc) (keys: gset w64) : iPropO Σ :=
   (∃ (key: w64) (left_l right_l: loc) (l_keys r_keys: gset w64),
-   "key" :: l ↦s[heap.SearchTree :: "key"] key ∗
-   "left" :: l ↦s[heap.SearchTree :: "left"] left_l ∗
-   "right" :: l ↦s[heap.SearchTree :: "right"] right_l ∗
+   "key" :: l.[heap.SearchTree.t, "key"] ↦ key ∗
+   "left" :: l.[heap.SearchTree.t, "left"] ↦ left_l ∗
+   "right" :: l.[heap.SearchTree.t, "right"] ↦ right_l ∗
    (* the pointers in a tree themselves point to subtrees *)
    "Hleft" :: ▷ own_tree left_l l_keys ∗
    "Hright" :: ▷ own_tree right_l r_keys ∗
@@ -148,7 +148,7 @@ func (t *SearchTree) Contains(key uint64) bool {
 |*)
 Lemma wp_SearchTree__Contains (needle: w64) l keys :
   {{{ is_pkg_init heap ∗ own_tree l keys }}}
-    l @ (ptrT.id heap.SearchTree.id) @ "Contains" #needle
+    l @! (go.PointerType heap.SearchTree) @! "Contains" #needle
   {{{ RET #(bool_decide (needle ∈ keys)); own_tree l keys }}}.
 Proof.
   (*| `Contains` is recursive. We'll use Löb induction to prove it correct.
@@ -286,7 +286,7 @@ func (t *SearchTree) Insert(key uint64) *SearchTree {
 |*)
 Lemma wp_SearchTree__Insert (new_key: w64) l keys :
   {{{ is_pkg_init heap ∗ own_tree l keys }}}
-    l @ (ptrT.id heap.SearchTree.id) @ "Insert" #new_key
+    l @! (go.PointerType heap.SearchTree) @! "Insert" #new_key
   {{{ (l': loc), RET #l'; own_tree l' (keys ∪ {[new_key]}) }}}.
 Proof.
   iLöb as "IH" forall (l keys).

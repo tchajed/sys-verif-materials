@@ -276,7 +276,7 @@ Proof using All.
     wp_apply (wp_Mutex__Unlock with "[-HΦ Hx2_2 $Hlock $locked]").
     { iFrame.
       iPureIntro. split_and!; try word. }
-    wp_pures.
+    wp_auto.
     iApply "HΦ". iFrame.
   }
   iIntros (h_2) "#Hjh2".

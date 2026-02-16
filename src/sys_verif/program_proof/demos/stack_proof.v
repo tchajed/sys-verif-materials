@@ -37,7 +37,7 @@ it's okay to have this `reverse` here.
 
 Definition stack_rep (l: loc) (xs: list w64): iProp Σ :=
   ∃ (s: slice.t),
-    "elements" ∷ l ↦s[heap.Stack :: "elements"] s ∗
+    "elements" ∷ l.[heap.Stack.t, "elements"] ↦ s ∗
     (* The code appends because this is both easier and more efficient, thus the
     code elements are reversed compared to the abstract state. *)
     "Hels" ∷ own_slice s (DfracOwn 1) (reverse xs) ∗
@@ -61,7 +61,7 @@ Qed.
 
 Lemma wp_Stack__Push l xs (x: w64) :
   {{{ is_pkg_init heap.heap ∗ stack_rep l xs }}}
-    l @ (ptrT.id heap.Stack.id) @ "Push" #x
+    l @! (go.PointerType heap.Stack) @! "Push" #x
   {{{ RET #(); stack_rep l (x :: xs) }}}.
 Proof.
   wp_start as "Hstack".
@@ -100,7 +100,7 @@ Hint Rewrite @length_reverse : len.
 
 Lemma wp_Stack__Pop l xs :
   {{{ is_pkg_init heap.heap ∗ stack_rep l xs }}}
-    l @ (ptrT.id heap.Stack.id) @ "Pop" #()
+    l @! (go.PointerType heap.Stack) @! "Pop" #()
   {{{ (x: w64) (ok: bool) xs', RET (#x, #ok);
       stack_rep l xs' ∗
       ⌜(x, ok, xs') = stack_pop xs⌝

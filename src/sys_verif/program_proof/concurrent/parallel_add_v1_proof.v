@@ -54,7 +54,7 @@ Section proof.
         split; [ lia | ].
         split; [ lia | ].
         word. }
-      iIntros (_) "Hx". wp_pures.
+      iIntros (_) "Hx". wp_auto.
       iApply "HΦ". iFrame. }
     iIntros (h1) "Hh1".
     wp_auto.
@@ -76,7 +76,7 @@ Section proof.
         split; [ lia | ].
         split; [ lia | ].
         word. }
-      iIntros (_) "Hx". wp_pures.
+      iIntros (_) "Hx". wp_auto.
       iApply "HΦ". iFrame. }
     iIntros (h2) "Hh2".
     wp_auto.

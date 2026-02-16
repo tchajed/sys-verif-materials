@@ -499,13 +499,13 @@ The next step you'd expect is that we need to use the rule of consequence to pro
   iIntros (x) "Hx".
 
 (*| At this point there is a `let:` binding which we need to apply the pure-step rule to. Thankfully, the IPM has automation to handle this for us.  |*)
-  wp_pures. (* {GOAL DIFF} *)
+  wp_auto. (* {GOAL DIFF} *)
 
 (*| The IPM can automate all of the above for allocation, load, and store: |*)
-  wp_store. wp_pures.
+  wp_store. wp_auto.
   wp_alloc y as "Hy".
-  wp_pures.
-  wp_store. wp_pures.
+  wp_auto.
+  wp_store. wp_auto.
   wp_bind (@! heap.IgnoreOne _ _)%E. (* make the goal easier to understand *) (* {GOAL} *)
 
 (*| You might think we should do `iApply wp_IgnoreOne`. Let's see what happens if we do that: |*)
@@ -582,7 +582,7 @@ Proof.
   { iExact "l". }
   iModIntro.
   iIntros "l".
-  wp_pures.
+  wp_auto.
   (* wp_apply (wp_f with "[$l]") as "l". *)
   iApply "HΦ".
   iFrame.

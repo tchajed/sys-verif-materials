@@ -62,9 +62,9 @@ Lemma wp_Add_bounded (x y: w64) :
   {{{ (z: w64), RET #z; ⌜uint.Z z = (uint.Z x + uint.Z y)%Z⌝ }}}.
 Proof.
   wp_start as "%Hbound". wp_call.
-  wp_alloc b_l as "b". wp_pures.
-  wp_alloc a_l as "a". wp_pures.
-  wp_load. wp_load. wp_pures. (* {GOAL} *)
+  wp_alloc b_l as "b". wp_auto.
+  wp_alloc a_l as "a". wp_auto.
+  wp_load. wp_load. wp_auto. (* {GOAL} *)
   (*| You can see in this goal that the specific word being returned is `word.add x y`. |*)
   iApply "HΦ".
   iPureIntro. (* {GOAL} *)
@@ -79,9 +79,9 @@ Lemma wp_Add_general (x y: w64) :
   {{{ RET #(word.add x y); True }}}.
 Proof.
   wp_start as "_". wp_call.
-  wp_alloc b_l as "b". wp_pures.
-  wp_alloc a_l as "a". wp_pures.
-  wp_load. wp_load. wp_pures.
+  wp_alloc b_l as "b". wp_auto.
+  wp_alloc a_l as "a". wp_auto.
+  wp_load. wp_load. wp_auto.
   iApply "HΦ". done.
 Qed.
 

@@ -111,9 +111,9 @@ Lemma wp_ExamplePersonRef_fields :
   {{{ is_pkg_init heap.heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
-      l ↦s[heap.Person :: "FirstName"] "Ada"%go ∗
-      l ↦s[heap.Person :: "LastName"] "Lovelace"%go ∗
-      l ↦s[heap.Person :: "Age"] W64 25
+      l.[heap.Person.t, "FirstName"] ↦ "Ada"%go ∗
+      l.[heap.Person.t, "LastName"] ↦ "Lovelace"%go ∗
+      l.[heap.Person.t, "Age"] ↦ W64 25
   }}}.
 Proof.
   wp_start as "#init".
@@ -127,17 +127,17 @@ Qed.
 
 (*| ## Methods on structs
 
-When we state a wp spec for a method (as opposed to a function), we have to say what type the method is for to be unambigious. This is the same information that goes into the Go type signature, just written in a different way. Here we need to reference not the Go type, but its "identifier", a unique name for it. Here's an example of stating such a lemma, where the receiver is a `Person` value (not a pointer). Notice that the type identifier provided is `heap.Person.id`.
+When we state a wp spec for a method (as opposed to a function), we have to say what type the method is for to be unambigious. This is the same information that goes into the Go type signature, just written in a different way. Here we need to reference not the Go type, but its "identifier", a unique name for it. Here's an example of stating such a lemma, where the receiver is a `Person` value (not a pointer). Notice that the type identifier provided is `heap.Person`.
 |*)
 
 Lemma wp_Person__Name (firstName lastName: go_string) (age: w64) :
   {{{ is_pkg_init heap.heap }}}
-  (heap.Person.mk firstName lastName age) @ heap.Person.id @ "Name" #()
+  (heap.Person.mk firstName lastName age) @! heap.Person @! "Name" #()
   {{{ RET #(firstName ++ " " ++ lastName)%go; True }}}.
 Proof.
   wp_start as "#init".
-  (* wp_pures will automatically handle these field reference calculations, which compute pointers to the struct fields (at this point the method receiver is behind a pointer because all method arguments are stored on the heap to make them mutable). *)
-  wp_alloc p_l as "p". wp_pures. (* {GOAL DIFF} *)
+  (* wp_auto will automatically handle these field reference calculations, which compute pointers to the struct fields (at this point the method receiver is behind a pointer because all method arguments are stored on the heap to make them mutable). *)
+  wp_alloc p_l as "p". wp_auto. (* {GOAL DIFF} *)
   iApply struct_fields_split in "p"; iNamed "p";
   cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
   wp_auto.
@@ -145,20 +145,20 @@ Proof.
   rewrite -app_assoc //.
 Qed.
 
-(*| One more example of a method, this time on a pointer. Thus we need the receiver to be a `loc`, the precondition needs ownership over that pointer (specifically, to all the fields of a `Person` at that location), and finally the receiver type is `(ptrT.id heap.Person.id)` to represent a pointer to a `Person` struct. |*)
+(*| One more example of a method, this time on a pointer. Thus we need the receiver to be a `loc`, the precondition needs ownership over that pointer (specifically, to all the fields of a `Person` at that location), and finally the receiver type is `(go.PointerType heap.Person)` to represent a pointer to a `Person` struct. |*)
 Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
   {{{ is_pkg_init heap.heap ∗
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
-      p ↦s[heap.Person :: "Age"] age
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
+      p.[heap.Person.t, "Age"] ↦ age
   }}}
-    p @ (ptrT.id heap.Person.id) @ "Older" #delta
+    p @! (go.PointerType heap.Person) @! "Older" #delta
   {{{ RET #();
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
       (* we avoid overflow reasoning by saying the resulting integer is just
       [word.add age delta], which will wrap at 2^64  *)
-      p ↦s[heap.Person :: "Age"] word.add age delta
+      p.[heap.Person.t, "Age"] ↦ word.add age delta
   }}}.
 Proof.
   wp_start as "(first & last & age)".

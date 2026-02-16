@@ -25,8 +25,8 @@ Section proof.
 
   Implicit Types (γ: gname).
 
-  #[global] Instance : IsPkgInit hashmap := define_is_pkg_init True%I.
-  #[global] Instance : GetIsPkgInitWf hashmap := build_get_is_pkg_init_wf.
+  #[global] Instance : IsPkgInit (iProp Σ) hashmap := define_is_pkg_init True%I.
+  #[global] Instance : GetIsPkgInitWf (iProp Σ) hashmap := build_get_is_pkg_init_wf.
 
   Definition own_ptr γ (x: loc) :=
     ghost_var γ (DfracOwn (1/2)) x.
@@ -36,12 +36,12 @@ Section proof.
 
   #[local] Definition lock_inv γ l : iProp _ :=
     ∃ (mref: loc),
-      "val" ∷ l ↦s[hashmap.atomicPtr :: "val"] mref ∗
+      "val" ∷ l.[hashmap.atomicPtr.t, "val"] ↦ mref ∗
       "Hauth" ∷ ghost_var γ (DfracOwn (1/2)) mref.
 
   Definition is_atomic_ptr γ (l: loc) : iProp _ :=
     ∃ (mu_l: loc),
-    "mu" ∷ l ↦s[hashmap.atomicPtr :: "mu"]□ mu_l ∗
+    "mu" ∷ l.[hashmap.atomicPtr.t, "mu"] ↦□ mu_l ∗
     "Hlock" ∷ is_Mutex mu_l (lock_inv γ l).
 
   #[global] Instance is_atomic_ptr_persistent γ l : Persistent (is_atomic_ptr γ l).
@@ -75,7 +75,7 @@ Section proof.
     (is_pkg_init hashmap ∗
     is_atomic_ptr γ l ∗
     |={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ x ={∅,⊤}=∗ Φ #x)) -∗
-    WP l @ (ptrT.id hashmap.atomicPtr.id) @ "load" #() {{ Φ }}.
+    WP l @! (go.PointerType hashmap.atomicPtr) @! "load" #() {{ Φ }}.
   Proof.
     iIntros (Φ) "(#? & #Hint & Hau)".
     wp_method_call. wp_call.
@@ -104,7 +104,7 @@ Section proof.
     ∀ Φ,
     (is_pkg_init hashmap ∗ is_atomic_ptr γ l ∗
     |={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ y ={∅,⊤}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.atomicPtr.id) @ "store" #y {{ Φ }}.
+    WP l @! (go.PointerType hashmap.atomicPtr) @! "store" #y {{ Φ }}.
   Proof.
     iIntros (Φ) "(#? & #Hint & Hau)".
     wp_method_call. wp_call.
@@ -176,8 +176,8 @@ Section proof.
 
   Definition is_hashmap γ γ_ptr (l: loc) : iProp _ :=
     ∃ (ptr_l mu_l: loc),
-    "#clean" ∷ l ↦s[hashmap.HashMap :: "clean"]□ ptr_l ∗
-    "#mu" ∷ l ↦s[hashmap.HashMap :: "mu"]□ mu_l ∗
+    "#clean" ∷ l.[hashmap.HashMap.t, "clean"] ↦□ ptr_l ∗
+    "#mu" ∷ l.[hashmap.HashMap.t, "mu"] ↦□ mu_l ∗
     "#Hclean" ∷ is_atomic_ptr γ_ptr ptr_l ∗
     "#Hlock" ∷ is_Mutex mu_l (lock_inv γ) ∗
     "#Hinv" ∷ inv N (hashmap_inv γ γ_ptr).
@@ -262,7 +262,7 @@ Section proof.
     (is_pkg_init hashmap ∗
     is_hashmap γ γ_ptr l ∗
     |={⊤∖↑N,∅}=> ∃ m, own_hashmap γ m ∗ (own_hashmap γ m ={∅,⊤∖↑N}=∗ Φ (#(fst (map_get (m !! key))), #(snd (map_get (m !! key))))%V)) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Load" #key {{ Φ }}.
+    WP l @! (go.PointerType hashmap.HashMap) @! "Load" #key {{ Φ }}.
   Proof.
     iIntros (Φ) "(#? & #Hmap & Hau)".
     wp_method_call. wp_call.
@@ -307,11 +307,11 @@ Section proof.
   fraction of [1] due to the deep copy here. *)
   Lemma wp_HashMap__dirty (γ γ_ptr: gname) l (ptr_l: loc) (m: gmap w64 w64) :
     {{{ is_pkg_init hashmap ∗
-        "#clean" ∷ l ↦s[hashmap.HashMap :: "clean"]□ ptr_l ∗
+        "#clean" ∷ l.[hashmap.HashMap.t, "clean"] ↦□ ptr_l ∗
         "#Hclean" ∷ is_atomic_ptr γ_ptr ptr_l ∗
         "#Hinv" ∷ inv N (hashmap_inv γ γ_ptr) ∗
         "Hm_lock" ∷ ghost_var γ (DfracOwn (1/4)) m }}}
-      l @ (ptrT.id hashmap.HashMap.id) @ "dirty" #()
+      l @! (go.PointerType hashmap.HashMap) @! "dirty" #()
     {{{ (mref: loc), RET #mref;
       own_map (kt:=uint64T) mref (DfracOwn 1) m ∗
       ghost_var γ (DfracOwn (1/4)) m }}}.
@@ -352,7 +352,7 @@ Section proof.
     is_hashmap γ γ_ptr l ∗
     |={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
         (own_hashmap γ (map_insert key val m) ={∅,⊤ ∖ ↑N}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Store" #key #val {{ Φ }}.
+    WP l @! (go.PointerType hashmap.HashMap) @! "Store" #key #val {{ Φ }}.
   Proof.
     iIntros (Φ) "(#? & #Hmap & Hau)".
     wp_method_call. wp_call.
@@ -407,7 +407,7 @@ Section proof.
     is_hashmap γ γ_ptr l ∗
     |={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
         (own_hashmap γ (delete key m) ={∅,⊤ ∖ ↑N}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Delete" #key {{ Φ }}.
+    WP l @! (go.PointerType hashmap.HashMap) @! "Delete" #key {{ Φ }}.
   Proof.
     (* notice how this proof is nearly identical to that for Store: the way this
     code works generally achieves atomicity for any critical section *)

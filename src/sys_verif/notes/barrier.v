@@ -130,7 +130,7 @@ Lemma wp_JoinHandle__Join (l: loc) (Q: iProp Σ) :
   {{{ RET #(); Q }}}
 ```
 
-The proof of this specification boils down to a careful choice of the lock invariant for the mutex in a `JoinHandle`. The lock invariant used in the proof is `∃ (done_b: bool), l ↦s[JoinHandle :: "done"] done_b ∗ (if done_b then P else True)`. What makes this work is that in `Join()`, if we discover that the thread has finished, the code sets `done` back to false, so the proof can extract the `P` in the lock invariant and restore it with merely `True`.
+The proof of this specification boils down to a careful choice of the lock invariant for the mutex in a `JoinHandle`. The lock invariant used in the proof is `∃ (done_b: bool), l.[JoinHandle.t, "done"] ↦ done_b ∗ (if done_b then P else True)`. What makes this work is that in `Join()`, if we discover that the thread has finished, the code sets `done` back to false, so the proof can extract the `P` in the lock invariant and restore it with merely `True`.
 
 The barrier specification builds on the core idea of Spawn and Join.
 

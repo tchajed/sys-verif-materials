@@ -272,7 +272,7 @@ Qed.
 
 As discussed above, a Person struct in memory is not stored in a single location. The points-to above is actually a separating conjunction over three smaller points-to assertions, one for each field, but it behaves like any other points-to when we read and write a struct. This shouldn't be too surprising - we are used to loading and storing values to memory via a pointer without thinking about how large they are, when in reality the assembly code to do loads and stores differs considerably between values that are 1 byte, 8 bytes (one machine word), and structs large than 8 bytes.
 
-Given a struct points-to assertion, we can break it down into _struct field points-to_ assertions of the form `l ↦s[heap.Person :: "Age"] (W64 25)` that represent ownership over a single field of the original struct. This is actually notation for a simpler concept: `(struct.field_ref_f heap.Person "Age" l) ↦ (W64 25)`. That is, owning a struct field is simply owning an appropriate offset from the base pointer, computed based on the struct and field name.
+Given a struct points-to assertion, we can break it down into _struct field points-to_ assertions of the form `l.[heap.Person.t, "Age"] ↦ (W64 25)` that represent ownership over a single field of the original struct. This is actually notation for a simpler concept: `(struct.field_ref_f heap.Person "Age" l) ↦ (W64 25)`. That is, owning a struct field is simply owning an appropriate offset from the base pointer, computed based on the struct and field name.
 
 |*)
 
@@ -280,9 +280,9 @@ Lemma wp_ExamplePersonRef_fields :
   {{{ is_pkg_init heap.heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
-      l ↦s[heap.Person :: "FirstName"] "Ada"%go ∗
-      l ↦s[heap.Person :: "LastName"] "Lovelace"%go ∗
-      l ↦s[heap.Person :: "Age"] W64 25
+      l.[heap.Person.t, "FirstName"] ↦ "Ada"%go ∗
+      l.[heap.Person.t, "LastName"] ↦ "Lovelace"%go ∗
+      l.[heap.Person.t, "Age"] ↦ W64 25
   }}}.
 Proof.
   wp_start as "#init".
@@ -297,12 +297,12 @@ Qed.
 
 Lemma wp_Person__Name (firstName lastName: go_string) (age: w64) :
   {{{ is_pkg_init heap.heap }}}
-  (heap.Person.mk firstName lastName age) @ heap.Person.id @ "Name" #()
+  (heap.Person.mk firstName lastName age) @! heap.Person @! "Name" #()
   {{{ RET #(firstName ++ " " ++ lastName)%go; True }}}.
 Proof.
   wp_start as "#init".
-(*| Notice how the following `wp_pures` call transforms `struct.field_ref` into `#(struct.field_ref_f ...)` - this is from a Goose-provided theorem that relates the GooseLang code to a Gallina function. |*)
-  wp_alloc p_l as "p". wp_pures. (* {GOAL DIFF} *)
+(*| Notice how the following `wp_auto` call transforms `struct.field_ref` into `#(struct.field_ref_f ...)` - this is from a Goose-provided theorem that relates the GooseLang code to a Gallina function. |*)
+  wp_alloc p_l as "p". wp_auto. (* {GOAL DIFF} *)
   (*| The `struct_fields_split` theorem turns a pointer to a struct into pointers for its individual fields. |*)
   iApply struct_fields_split in "p"; iNamed "p";
   cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age']. (* {GOAL DIFF} *)
@@ -313,17 +313,17 @@ Qed.
 
 Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
   {{{ is_pkg_init heap.heap ∗
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
-      p ↦s[heap.Person :: "Age"] age
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
+      p.[heap.Person.t, "Age"] ↦ age
   }}}
-    p @ (ptrT.id heap.Person.id) @ "Older" #delta
+    p @! (go.PointerType heap.Person) @! "Older" #delta
   {{{ RET #();
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
       (* we avoid overflow reasoning by saying the resulting integer is just
       [word.add age delta], which will wrap at 2^64  *)
-      p ↦s[heap.Person :: "Age"] word.add age delta
+      p.[heap.Person.t, "Age"] ↦ word.add age delta
   }}}.
 Proof.
   wp_start as "(first & last & age)".
@@ -334,14 +334,14 @@ Qed.
 (*| Here is one possible spec for `GetAge`, which results in breaking off the age field into its points-to assertion. Note that this spec allows the caller to retain ownership over the other fields, as opposed to a spec which only gave `age_l ↦ age` in the postcondition. |*)
 Lemma wp_GetAge (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
   {{{ is_pkg_init heap.heap ∗
-      "first" :: p ↦s[heap.Person :: "FirstName"] firstName ∗
-      "last" :: p ↦s[heap.Person :: "LastName"] lastName ∗
-      "age" :: p ↦s[heap.Person :: "Age"] age
+      "first" :: p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      "last" :: p.[heap.Person.t, "LastName"] ↦ lastName ∗
+      "age" :: p.[heap.Person.t, "Age"] ↦ age
   }}}
-    p @ (ptrT.id heap.Person.id) @ "GetAge" #()
+    p @! (go.PointerType heap.Person) @! "GetAge" #()
   {{{ (age_l: loc), RET #age_l;
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
       age_l ↦ age
   }}}.
 Proof.
@@ -361,7 +361,7 @@ You'll need to reference the implementation of these functions and methods in [g
 (* EXERCISE:
 Lemma wp_Rect__Area (r_ptr0: loc) :
   {{{ is_pkg_init heap ∗ r_ptr0 ↦ () }}}
-    r_ptr0 @ (ptrT.id heap.Rect.id) @ "Area" #()
+    r_ptr0 @! (go.PointerType heap.Rect) @! "Area" #()
   {{{ RET #(); True }}}.
 Proof.
 Admitted.
@@ -370,7 +370,7 @@ Admitted.
 (* SOLUTION *)
 Lemma wp_Rect__Area (r_ptr0: loc) dq (r: heap.Rect.t) :
   {{{ is_pkg_init heap ∗ r_ptr0 ↦{dq} r }}}
-    r_ptr0 @ (ptrT.id heap.Rect.id) @ "Area" #()
+    r_ptr0 @! (go.PointerType heap.Rect) @! "Area" #()
   {{{ RET #(word.mul r.(heap.Rect.Width') r.(heap.Rect.Height')); r_ptr0 ↦{dq} r }}}.
 Proof.
   wp_start as "Hr".
@@ -405,16 +405,16 @@ Qed.
 (* EXERCISE:
 Lemma wp_Rect__MakeSquare (r_ptr0: loc) (width height: w64) :
   {{{ is_pkg_init heap }}}
-    r_ptr0 @ (ptrT.id heap.Rect.id) @ "MakeSquare" #()
+    r_ptr0 @! (go.PointerType heap.Rect) @! "MakeSquare" #()
   {{{ RET #(); True }}}.
 Proof.
 Abort.
 *)
 (* SOLUTION *)
 Lemma wp_Rect__MakeSquare (r_ptr0: loc) (width height: w64) :
-  {{{ is_pkg_init heap ∗ r_ptr0 ↦s[heap.Rect :: "Width"] width ∗ r_ptr0 ↦s[heap.Rect :: "Height"] height }}}
-    r_ptr0 @ (ptrT.id heap.Rect.id) @ "MakeSquare" #()
-  {{{ RET #(); r_ptr0 ↦s[heap.Rect :: "Width"] width ∗ r_ptr0 ↦s[heap.Rect :: "Height"] width }}}.
+  {{{ is_pkg_init heap ∗ r_ptr0.[heap.Rect.t, "Width"] ↦ width ∗ r_ptr0.[heap.Rect.t, "Height"] ↦ height }}}
+    r_ptr0 @! (go.PointerType heap.Rect) @! "MakeSquare" #()
+  {{{ RET #(); r_ptr0.[heap.Rect.t, "Width"] ↦ width ∗ r_ptr0.[heap.Rect.t, "Height"] ↦ width }}}.
 Proof.
   wp_start as "[width height]".
   wp_auto.
@@ -434,9 +434,9 @@ Abort.
 *)
 (* SOLUTION *)
 Lemma wp_Rect__Rotate (r_ptr0: loc) (width height: w64) :
-  {{{ is_pkg_init heap ∗ r_ptr0 ↦s[heap.Rect :: "Width"] width ∗ r_ptr0 ↦s[heap.Rect :: "Height"] height }}}
+  {{{ is_pkg_init heap ∗ r_ptr0.[heap.Rect.t, "Width"] ↦ width ∗ r_ptr0.[heap.Rect.t, "Height"] ↦ height }}}
     @! heap.Rotate #r_ptr0
-  {{{ RET #r_ptr0; r_ptr0 ↦s[heap.Rect :: "Width"] height ∗ r_ptr0 ↦s[heap.Rect :: "Height"] width }}}.
+  {{{ RET #r_ptr0; r_ptr0.[heap.Rect.t, "Width"] ↦ height ∗ r_ptr0.[heap.Rect.t, "Height"] ↦ width }}}.
 Proof.
   wp_start as "[width height]".
   wp_auto.
@@ -450,7 +450,7 @@ Qed.
 (* EXERCISE:
 Lemma wp_Person__BuggySetAge (p: unit) :
   {{{ True }}}
-    p @ heap.Person.id @ "BuggySetAge" #()
+    p @! heap.Person @! "BuggySetAge" #()
   {{{ RET #(); True }}}.
 Proof.
 Admitted.
@@ -458,7 +458,7 @@ Admitted.
 (* SOLUTION *)
 Lemma wp_Person__BuggySetAge (p: heap.Person.t) :
   {{{ is_pkg_init heap }}}
-    p @ heap.Person.id @ "BuggySetAge" #()
+    p @! heap.Person @! "BuggySetAge" #()
   {{{ (p': loc), RET #(); p' ↦ (heap.Person.mk p.(heap.Person.FirstName') p.(heap.Person.LastName') (word.add p.(heap.Person.Age') (W64 1))) }}}.
 Proof.
   wp_start.

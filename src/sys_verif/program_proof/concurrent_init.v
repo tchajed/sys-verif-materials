@@ -8,7 +8,7 @@ Section proof.
 Context `{hG: heapGS Σ} `{!ffi_semantics _ _}.
 Context `{!globalsGS Σ} {go_ctx: GoContext}.
 
-#[global] Instance : IsPkgInit concurrent := define_is_pkg_init True%I.
-#[global] Instance : GetIsPkgInitWf concurrent := build_get_is_pkg_init_wf.
+#[global] Instance : IsPkgInit (iProp Σ) concurrent := define_is_pkg_init True%I.
+#[global] Instance : GetIsPkgInitWf (iProp Σ) concurrent := build_get_is_pkg_init_wf.
 
 End proof.

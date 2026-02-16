@@ -92,7 +92,7 @@ Section proof.
     wp_apply (wp_Mutex__Unlock with "[$Hlock $Hlocked $x Hauth]").
     { iModIntro. rewrite /named.
       iExactEq "Hauth". repeat (f_equal; try word). }
-    wp_pures.
+    wp_auto.
     iApply "HΦ".
     iPureIntro.
     word.

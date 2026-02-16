@@ -32,8 +32,8 @@ From New.generatedproof.sys_verif_code Require Import memoize.
 Section proof.
 Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
 
-#[global] Instance : IsPkgInit memoize := define_is_pkg_init True%I.
-#[global] Instance : GetIsPkgInitWf memoize := build_get_is_pkg_init_wf.
+#[global] Instance : IsPkgInit (iProp Σ) memoize := define_is_pkg_init True%I.
+#[global] Instance : GetIsPkgInitWf (iProp Σ) memoize := build_get_is_pkg_init_wf.
 
 (*| ## Read-only pointers
 
@@ -106,7 +106,7 @@ Proof.
 is put into a separate list of hypotheses - this is the persistent context.
 
 To obtain the persistent points-to assertion, we have to give up the regular fractional assertion, and this operation is _not_ reversible - the persistence relies on the location never being written to. |*)
-  wp_pures.
+  wp_auto.
   iModIntro.
   iApply "HΦ".
   iFrame "Hro".
@@ -239,7 +239,7 @@ There are several interesting things in the representation function `own_mock_me
 
 Definition own_mock_memoize (m: loc) (f: w64 → w64) : iProp Σ :=
    ∃ (f_code: func.t),
-     "#Hf" :: m ↦s[memoize.MockMemoize :: "f"]□ f_code ∗
+     "#Hf" :: m.[memoize.MockMemoize.t, "f"] ↦□ f_code ∗
      "#Hf_spec" :: fun_implements f_code f.
 
 Lemma wp_NewMockMemoize (f_code: func.t) (f: w64 → w64) :
@@ -269,7 +269,7 @@ Qed.
 (*| Once an `own_mock_memoize` is set up, using it is very straightforward. |*)
 Lemma wp_MockMemoize__Call l f (x0: w64) :
   {{{ is_pkg_init memoize ∗ own_mock_memoize l f }}}
-    l @ (ptrT.id memoize.MockMemoize.id) @ "Call" #x0
+    l @! (go.PointerType memoize.MockMemoize) @! "Call" #x0
   {{{ RET #(f x0); True }}}.
 Proof.
   wp_start as "#Hm". iNamed "Hm". (* {GOAL} *)
@@ -319,7 +319,7 @@ Qed.
 
 Lemma wp_Memoize__Call v f (x0: w64) :
   {{{ is_pkg_init memoize ∗ own_memoize v f }}}
-    v @ memoize.Memoize.id @ "Call" #x0
+    v @! memoize.Memoize @! "Call" #x0
   {{{ RET #(f x0); own_memoize v f }}}.
 Proof.
   wp_start as "Hm".
