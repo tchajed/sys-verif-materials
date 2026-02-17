@@ -30,7 +30,10 @@ From New.proof Require Import std.
 From New.generatedproof.sys_verif_code Require Import memoize.
 
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : memoize.Assumptions}.
+Context `{!stdG Σ}.
+Collection W := sem + package_sem + stdG0.
+Set Default Proof Using "W".
 
 #[global] Instance : IsPkgInit (iProp Σ) memoize := define_is_pkg_init True%I.
 #[global] Instance : GetIsPkgInitWf (iProp Σ) memoize := build_get_is_pkg_init_wf.
@@ -51,9 +54,9 @@ Fractions also support _combining_ to recover full ownership and go back to bein
 
 Lemma split_fraction_example (l: loc) (x: w64) :
   {{{ l ↦ x ∗ ⌜uint.Z x < 100⌝ }}}
-    let: "y" := ![#uint64T] #l in
-    let: "z" := ![#uint64T] #l in
-    #l <-[#uint64T] ("y" + "z")
+    let: "y" := ![go.uint64] #l in
+    let: "z" := ![go.uint64] #l in
+    #l <-[go.uint64] ("y" +⟨go.uint64⟩ "z")
   {{{ RET #(); l ↦ (word.add x x) }}}.
 Proof.
   wp_start as "[Hx %Hbound]".
@@ -92,7 +95,7 @@ So what propositions are persistent? First, the pure propositions are persistent
 
 Lemma alloc_ro_spec (x: w64) :
   {{{ True }}}
-    alloc #x
+    GoAlloc go.int #x
   {{{ (l: loc), RET #l; l ↦□ x }}}.
 Proof.
   wp_start as "_".
@@ -106,7 +109,6 @@ Proof.
 is put into a separate list of hypotheses - this is the persistent context.
 
 To obtain the persistent points-to assertion, we have to give up the regular fractional assertion, and this operation is _not_ reversible - the persistence relies on the location never being written to. |*)
-  wp_auto.
   iModIntro.
   iApply "HΦ".
   iFrame "Hro".
@@ -116,13 +118,12 @@ Qed.
 permission need not be returned in the postcondition. |*)
 Lemma read_discarded_spec (l: loc) (x: w64) :
   {{{ l ↦□ x }}}
-    ![#uint64T] #l
+    ![go.uint64] #l
   {{{ RET #x; True }}}.
 Proof.
   wp_start as "#H".
-  wp_apply (@wp_load_ty with "[$H]"). iIntros "_".
+  wp_apply (wp_load with "[$H]"). iIntros "_".
   iApply "HΦ". auto.
-  Unshelve.
 Qed.
 
 (*| ### Exercise: why not return the points-to?
@@ -254,9 +255,8 @@ Proof.
   wp_auto.
   wp_alloc m as "Hm".
   wp_auto.
-  iApply struct_fields_split in "Hm". iNamed "Hm".
-  iSimpl in "Hf".
-  iPersist "Hf". (* {GOAL DIFF} *)
+  iStructNamed "Hm". iSimpl in "f".
+  iPersist "f". (* {GOAL DIFF} *)
   (*| The use of `iPersist` above has turned our regular points-to (for a struct
   field) into a persistent fact. We can never write to that field again in the
   proof, but in exchange the assertion is persistent. |*)
@@ -307,8 +307,7 @@ Lemma wp_NewMemoize (f: w64 → w64) (f_code: func.t) :
 Proof.
   wp_start as "#Hf". (* {GOAL} *)
   wp_auto.
-  wp_apply (wp_map_make) as "%m_ref Hm".
-  { auto. }
+  wp_apply (wp_map_make1) as "%m_ref Hm".
   iApply "HΦ".
   iFrame "Hf Hm".
   iPureIntro.
@@ -326,7 +325,7 @@ Proof.
   iNamed "Hm". subst. (* {GOAL} *)
   wp_auto.
   cbn [memoize.Memoize.results'].
-  wp_apply (wp_map_get with "Hm") as "Hm".
+  wp_apply (wp_map_lookup2 with "Hm") as "Hm".
   wp_if_destruct; subst.
   - destruct i as [y Hget].
     assert (y = f x0) by eauto; subst.
@@ -409,7 +408,7 @@ Proof.
 Qed.
 
 Lemma wp_UseMemoize2 (s: slice.t) (x1 x2 x3: w64) :
-  {{{ is_pkg_init memoize ∗ own_slice s (DfracOwn 1) [x1; x2; x3] }}}
+  {{{ is_pkg_init memoize ∗ s ↦* [x1; x2; x3] }}}
     @! memoize.UseMemoize2 #s
   {{{ RET #(); True }}}.
 Proof.
@@ -434,7 +433,7 @@ The rest of this proof is general loop and slice reasoning and not related to th
     wp_start as "_".
     wp_auto.
     wp_if_destruct.
-    { simpl in Hsz.
+    {
       rewrite -> decide_False by word.
       iApply "HΦ"; done.
     }
@@ -447,10 +446,10 @@ The rest of this proof is general loop and slice reasoning and not related to th
     { iPureIntro. word. }
     wp_for "HI".
     wp_if_destruct.
-    - wp_pure.
-      { word. }
+    - rewrite -> decide_True by word.
+      rewrite -> decide_True by word.
       list_elem [x1; x2; x3] (sint.Z i) as x_i.
-      wp_apply (wp_load_slice_elem with "[$Hs]") as "_"; [ word | by eauto | ].
+      wp_apply (wp_load_slice_index with "[$Hs]") as "_"; [ word | by eauto | ].
       wp_for_post.
       iFrame.
       iSplit.

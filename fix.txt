@@ -1,0 +1,1 @@
+- explanations in `notes/` may be out of date (e.g. no more `own_slice_small`, no `uint64T`)

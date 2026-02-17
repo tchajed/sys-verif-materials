@@ -65,8 +65,10 @@ From Perennial Require Import base.
 (* Some boilerplate is needed to set up a proof. These are assumptions that are
 dispatched by initialization, a process that runs before any other program code. *)
 Section proof.
-Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Context `{!stdG Σ}.
+Collection W := sem + package_sem + stdG0.
+Set Default Proof Using "W".
 
 (*| Every Go package must define its initialization predicate, a proposition
 that should hold after it is _initialized_. Goose has a global variable that holds
@@ -144,14 +146,14 @@ Proof.
   wp_alloc z as "z".
   (* `wp_auto` is run by `wp_auto` (the latter also handles loads and stores) *)
   wp_auto.
-  wp_alloc y as "y".
-  wp_auto.
-  wp_alloc x as "x".
-  wp_auto.
+  (* wp_alloc y as "y". *)
+  (* wp_auto. *)
+  (* wp_alloc x as "x". *)
+  (* wp_auto. *)
   (* `wp_load` should essentially not be needed since you can use `wp_auto`.
   However, if things aren't working this tactic will report a better error message. *)
-  wp_load.
-  wp_load.
+  (* wp_load. *)
+  (* wp_load. *)
 
   (* Use this when the next expression is an `if` to split the proof into the
   two branches. *)
@@ -164,9 +166,9 @@ Proof.
     made as part of the Hoare triple definition. |*)
     iApply "HΦ".
     iFrame.
-  - (* wp_finish just does `iApply "HΦ"` followed by some very simple automation
+  - (* wp_end just does `iApply "HΦ"` followed by some very simple automation
     if the resulting postcondition is easy to solve. *)
-    wp_finish.
+    wp_end.
 Qed.
 
 (*|

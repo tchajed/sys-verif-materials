@@ -10,7 +10,9 @@ shortTitle: Integers
 From sys_verif.program_proof Require Import prelude empty_ffi.
 From New.generatedproof.sys_verif_code Require Import functional.
 Section goose.
-Context `{hG: !heapGS Σ}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : functional.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*|
 You'll be pervasively working with integers in GooseLang. A few hints will help make sense of all the types and functions for reasoning about them in program proofs, in Rocq.
@@ -58,18 +60,19 @@ This style of postcondition is common with integers: we say there exists a `z: w
 
 Lemma wp_Add_bounded (x y: w64) :
   {{{ ⌜uint.Z x + uint.Z y < 2^64⌝ }}}
-    functional.Addⁱᵐᵖˡ #x #y
+    @! functional.Add #x #y
   {{{ (z: w64), RET #z; ⌜uint.Z z = (uint.Z x + uint.Z y)%Z⌝ }}}.
 Proof.
-  wp_start as "%Hbound". wp_call.
-  wp_alloc b_l as "b". wp_auto.
-  wp_alloc a_l as "a". wp_auto.
-  wp_load. wp_load. wp_auto. (* {GOAL} *)
-  (*| You can see in this goal that the specific word being returned is `word.add x y`. |*)
-  iApply "HΦ".
-  iPureIntro. (* {GOAL} *)
-  (*| This goal is only true because the sum doesn't overflow - in general `uint.Z (word.add x y) = (uint.Z x + uint.Z y) % 2^64`. |*)
-  word.
+  wp_start as "%Hbound".
+  wp_auto. iApply "HΦ". word. wp_end.
+  (* wp_alloc b_l as "b". wp_auto. *)
+  (* wp_alloc a_l as "a". wp_auto. *)
+  (* wp_load. wp_load. wp_auto. (* {GOAL} *) *)
+  (* (*| You can see in this goal that the specific word being returned is `word.add x y`. |*) *)
+  (* iApply "HΦ". *)
+  (* iPureIntro. (* {GOAL} *) *)
+  (* (*| This goal is only true because the sum doesn't overflow - in general `uint.Z (word.add x y) = (uint.Z x + uint.Z y) % 2^64`. |*) *)
+  (* word. *)
 Qed.
 
 (*| If for whatever reason you want to just specify the exact word being returned, you can use `word.add` directly, but it's not common to want this. |*)
@@ -78,11 +81,7 @@ Lemma wp_Add_general (x y: w64) :
     functional.Addⁱᵐᵖˡ #x #y
   {{{ RET #(word.add x y); True }}}.
 Proof.
-  wp_start as "_". wp_call.
-  wp_alloc b_l as "b". wp_auto.
-  wp_alloc a_l as "a". wp_auto.
-  wp_load. wp_load. wp_auto.
-  iApply "HΦ". done.
+  wp_start as "_". wp_auto. wp_end.
 Qed.
 
 End goose.
