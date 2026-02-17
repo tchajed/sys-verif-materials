@@ -103,7 +103,7 @@ Lemma wp_ExamplePersonRef :
 Proof.
   wp_start as "_".
   wp_alloc l as "p".
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| We can split a points-to for a struct into its component fields. This is also implemented by proofgen, which implements the `StructFieldsSplit` typeclass. That class is more complicated because it's not a function but in fact a proof about the struct points-to. |*)
@@ -122,7 +122,7 @@ Proof.
   (* the output of `struct_fields_split` can be simplified by splitting it with `iNamed` and with `cbn` (or `simpl`). *)
   iNamed "p".
   cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| ## Methods on structs
@@ -141,7 +141,7 @@ Proof.
   iApply struct_fields_split in "p"; iNamed "p";
   cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
   wp_auto.
-  wp_finish.
+  wp_end.
   rewrite -app_assoc //.
 Qed.
 
@@ -163,7 +163,7 @@ Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (de
 Proof.
   wp_start as "(first & last & age)".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| |*)

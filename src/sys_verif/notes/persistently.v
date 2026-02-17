@@ -31,8 +31,7 @@ From New.generatedproof.sys_verif_code Require Import memoize.
 
 Section proof.
 Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : memoize.Assumptions}.
-Context `{!stdG Σ}.
-Collection W := sem + package_sem + stdG0.
+Collection W := sem + package_sem.
 Set Default Proof Using "W".
 
 #[global] Instance : IsPkgInit (iProp Σ) memoize := define_is_pkg_init True%I.

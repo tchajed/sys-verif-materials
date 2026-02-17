@@ -69,7 +69,9 @@ From sys_verif.program_proof Require Import heap_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*|
 ## Typed points-to assertion
@@ -95,14 +97,14 @@ A points-to assertion is required to load and store to a location. We think of t
 
 Lemma wp_load_example (l: loc) :
   {{{ l ↦ W64 3 }}}
-    let: "x" := ![#uint64T] #l in
+    let: "x" := ![go.uint64] #l in
     "x"
   {{{ RET #(W64 3); l ↦ W64 3 }}}.
 Proof.
   wp_start as "l".
   wp_load.
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| The code in this example includes a type annotation on the load, with the type `#uint64T`. This type is required since this load is not a core primitive, but instead a function. Composite values like structs are not stored in one heap location, but laid out with one field per location, and `![#s] #l` with a struct type `s` would load the fields individually. However, this specification hides that complexity: as long as the type `uint64T` matches the type of data in the points-to assertin (`w64`), we get the expected specification for loads. |*)
@@ -232,12 +234,12 @@ To see these ideas in action, let's start with a function that doesn't involve o
 |*)
 
 Lemma wp_ExamplePerson :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
     @! heap.ExamplePerson #()
   {{{ RET #(heap.Person.mk "Ada" "Lovelace" (W64 25)); True }}}.
 Proof.
   wp_start.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| `ExamplePerson` returns a struct value. We write the specification using Person.t, and use `#` to turn it into the GooseLang value that is actually returned (which is a tuple, not the Gallina record). |*)
@@ -258,14 +260,14 @@ func ExamplePersonRef() *Person {
 
 (*| This specification shows that the typed points-to can be used for something other than a base literal. |*)
 Lemma wp_ExamplePersonRef :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
       l ↦ (heap.Person.mk "Ada" "Lovelace" (W64 25)) }}}.
 Proof.
   wp_start as "_".
   wp_alloc l as "p".
-  wp_finish.
+  wp_end.
 Qed.
 
 (*|
@@ -277,7 +279,7 @@ Given a struct points-to assertion, we can break it down into _struct field poin
 |*)
 
 Lemma wp_ExamplePersonRef_fields :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
       l.[heap.Person.t, "FirstName"] ↦ "Ada"%go ∗
@@ -287,16 +289,16 @@ Lemma wp_ExamplePersonRef_fields :
 Proof.
   wp_start as "#init".
   wp_alloc l as "p".
-  iApply struct_fields_split in "p". iNamed "p".
-  cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
+  iStructNamed "p".
+  simpl.
   (*| The theorem `struct_fields_split` gives a way to take any points-to assertion with a struct type and split it into its component field points-to assertions, which is what the postcondition of this spec gives. |*)
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| The two concepts of a single points-to for the whole struct and individual field points-to assertions are the main ideas for how Goose handles ownership of struct. We see them used throughout the rest of the examples above: |*)
 
 Lemma wp_Person__Name (firstName lastName: go_string) (age: w64) :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
   (heap.Person.mk firstName lastName age) @! heap.Person @! "Name" #()
   {{{ RET #(firstName ++ " " ++ lastName)%go; True }}}.
 Proof.
@@ -304,15 +306,12 @@ Proof.
 (*| Notice how the following `wp_auto` call transforms `struct.field_ref` into `#(struct.field_ref_f ...)` - this is from a Goose-provided theorem that relates the GooseLang code to a Gallina function. |*)
   wp_alloc p_l as "p". wp_auto. (* {GOAL DIFF} *)
   (*| The `struct_fields_split` theorem turns a pointer to a struct into pointers for its individual fields. |*)
-  iApply struct_fields_split in "p"; iNamed "p";
-  cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age']. (* {GOAL DIFF} *)
-  wp_auto.
-  wp_finish.
+  wp_end.
   rewrite -app_assoc //.
 Qed.
 
 Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
-  {{{ is_pkg_init heap.heap ∗
+  {{{ is_pkg_init heap ∗
       p.[heap.Person.t, "FirstName"] ↦ firstName ∗
       p.[heap.Person.t, "LastName"] ↦ lastName ∗
       p.[heap.Person.t, "Age"] ↦ age
@@ -328,12 +327,12 @@ Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (de
 Proof.
   wp_start as "(first & last & age)".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| Here is one possible spec for `GetAge`, which results in breaking off the age field into its points-to assertion. Note that this spec allows the caller to retain ownership over the other fields, as opposed to a spec which only gave `age_l ↦ age` in the postcondition. |*)
 Lemma wp_GetAge (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
-  {{{ is_pkg_init heap.heap ∗
+  {{{ is_pkg_init heap ∗
       "first" :: p.[heap.Person.t, "FirstName"] ↦ firstName ∗
       "last" :: p.[heap.Person.t, "LastName"] ↦ lastName ∗
       "age" :: p.[heap.Person.t, "Age"] ↦ age
@@ -347,13 +346,13 @@ Lemma wp_GetAge (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w6
 Proof.
   wp_start as "H". iNamed "H".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*|
 ## Exercises: struct specifications
 
-Fill in a specification for each function, then do the proof. Proofs should mostly be automated (using tactics like `wp_start`, `wp_auto`, and `wp_finish`) if you have a correct specification.
+Fill in a specification for each function, then do the proof. Proofs should mostly be automated (using tactics like `wp_start`, `wp_auto`, and `wp_end`) if you have a correct specification.
 
 You'll need to reference the implementation of these functions and methods in [go/heap/struct.go](https://github.com/tchajed/sys-verif-fa25-proofs/blob/main/go/heap/struct.go).
 
@@ -375,7 +374,7 @@ Lemma wp_Rect__Area (r_ptr0: loc) dq (r: heap.Rect.t) :
 Proof.
   wp_start as "Hr".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 (* /SOLUTION *)
 
@@ -396,7 +395,7 @@ Lemma wp_IsSquare (r: heap.Rect.t) :
 Proof.
   wp_start.
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 (* /SOLUTION *)
 
@@ -418,7 +417,7 @@ Lemma wp_Rect__MakeSquare (r_ptr0: loc) (width height: w64) :
 Proof.
   wp_start as "[width height]".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 (* /SOLUTION *)
 
@@ -440,7 +439,7 @@ Lemma wp_Rect__Rotate (r_ptr0: loc) (width height: w64) :
 Proof.
   wp_start as "[width height]".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 (* /SOLUTION *)
 
@@ -463,8 +462,9 @@ Lemma wp_Person__BuggySetAge (p: heap.Person.t) :
 Proof.
   wp_start.
   wp_auto.
-  wp_finish.
-Qed.
+(*   wp_end. *)  (* FIXME: p' ownership gets thrown away by wp_auto now. *)
+(* Qed. *)
+Abort.
 (* /SOLUTION *)
 
 
@@ -509,7 +509,7 @@ GooseLang models loading and storing slice elements in a similar way to struct f
 
 |*)
 
-Check wp_load_slice_elem. (* {OUTPUT} *)
+Check wp_load_slice_index. (* {OUTPUT} *)
 
 (*|
 We got this specification using `Check` rather than copying it from the Perennial source code.
@@ -519,7 +519,7 @@ One complication in using this specification is that its precondition requires t
 Storing is fairly similar:
 |*)
 
-Check wp_store_slice_elem. (* {OUTPUT} *)
+Check wp_store_slice_index. (* {OUTPUT} *)
 
 (*|
 
@@ -547,7 +547,7 @@ func SliceSwap(s []int, i, j int) {
 
 |*)
 Lemma wp_SliceSwap (s: slice.t) (xs: list w64) (i j: w64) (x_i x_j: w64) :
-  {{{ is_pkg_init heap.heap ∗ s ↦* xs ∗ ⌜xs !! sint.nat i = Some x_i ∧ xs !! sint.nat j = Some x_j⌝ ∗ ⌜0 ≤ sint.Z i ∧ 0 ≤ sint.Z j⌝ }}}
+  {{{ is_pkg_init heap ∗ s ↦* xs ∗ ⌜xs !! sint.nat i = Some x_i ∧ xs !! sint.nat j = Some x_j⌝ ∗ ⌜0 ≤ sint.Z i ∧ 0 ≤ sint.Z j⌝ }}}
     @! heap.SliceSwap #s #i #j
   {{{ RET #(); s ↦* <[ sint.nat j := x_i ]> (<[ sint.nat i := x_j ]> xs) }}}.
 Proof.
@@ -564,30 +564,29 @@ Proof.
   iDestruct (own_slice_len with "Hs") as %Hlen. (* {GOAL DIFF} *)
 
   (*| `slice.elem_ref` requires calling `wp_pure` and then proving that the indices are in-bounds, since Go panics even if you just compute these indices |*)
-  wp_pure.
-  { word. }
-  wp_apply (wp_load_slice_elem with "[$Hs]") as "Hs".
+  rewrite -> decide_True by word.
+  wp_apply (wp_load_slice_index with "[$Hs]") as "Hs".
   { word. }
   { eauto. }
 
-  wp_pure; first word.
-  wp_apply (wp_load_slice_elem with "[$Hs]") as "Hs"; first word.
+  rewrite -> decide_True by word.
+  wp_apply (wp_load_slice_index with "[$Hs]") as "Hs"; first word.
   { eauto. }
 
-  wp_pure; first word.
-  wp_apply (wp_store_slice_elem with "[$Hs]") as "Hs"; first word.
+  rewrite -> decide_True by word. wp_auto.
+  wp_apply (wp_store_slice_index with "[$Hs]") as "Hs"; first word.
 
-  wp_pure; first word.
-  wp_apply (wp_store_slice_elem with "[$Hs]") as "Hs".
+  rewrite -> decide_True by word. wp_auto.
+  wp_apply (wp_store_slice_index with "[$Hs]") as "Hs".
   { autorewrite with len. word. }
 
-  wp_finish.
+  wp_end.
 Qed.
 
 (*|
 Storing into a slice requires only a proof that the index is in-bounds. The postcondition uses `<[sint.nat i := v]> vs` which is a Gallina implementation of updating one index of a list (it's notation for the function `insert` from std++).
 
-You may notice that there's an arbitrary `q : dfrac` in the specification for `wp_load_slice_elem`, while `wp_store_slice_elem` does not have a fraction (it is implicitly 1). This is analogous to the read-only ownership for plain pointers that we saw earlier.
+You may notice that there's an arbitrary `q : dfrac` in the specification for `wp_load_slice_index`, while `wp_store_slice_index` does not have a fraction (it is implicitly 1). This is analogous to the read-only ownership for plain pointers that we saw earlier.
 |*)
 
 (*|

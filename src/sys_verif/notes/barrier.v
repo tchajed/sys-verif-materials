@@ -273,7 +273,7 @@ From Perennial.algebra Require Import ghost_var.
 Open Scope Z_scope.
 
 Section proof.
-  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
   Context `{ghost_varG0: ghost_varG Σ Z}.
   Context `{barrierG0: barrier.barrierG Σ}.
 

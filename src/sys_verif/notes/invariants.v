@@ -82,7 +82,9 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*
 func SetX(x *uint64) {
@@ -144,7 +146,6 @@ Proof.
     wp_auto.
     done.
   }
-  wp_auto.
   iApply "HΦ". done.
 Qed.
 
@@ -219,8 +220,7 @@ Lemma wp_FirstLock_v1 :
   {{{ (y: w64), RET #y; True }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_auto.
-  wp_alloc_auto; wp_auto. (* {GOAL} *)
+  wp_auto.
 
 (*| Note that the automation has allocated a local variable for the mutex - we have `"m" : m_ptr ↦ default_val Mutex.t`.
 

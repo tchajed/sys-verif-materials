@@ -124,7 +124,9 @@ Qed.
 
 Section proof.
 Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : functional.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*| This is the invariant that makes the proof work. The inputs all directly
    correspond to the code's variables. Remember that [n0] is the initial value and
@@ -346,7 +348,7 @@ Proof.
       intros H.
       contradiction n1.
       word.
-  - wp_finish.
+  - wp_end.
     iPureIntro.
     eapply fast_exp_inv_done; [ | eauto ].
     word.

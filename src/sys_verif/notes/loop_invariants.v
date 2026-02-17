@@ -80,8 +80,9 @@ From sys_verif.program_proof Require Import heap_init functional_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : functional.Assumptions}.
-Collection W := sem + package_sem. Set Default Proof Using "W".
+Context {sem : go.Semantics} {package_sem : heap.Assumptions} {package_sem' : functional.Assumptions}.
+Collection W := sem + package_sem + package_sem'.
+Set Default Proof Using "W".
 
 (*|
 
@@ -192,8 +193,6 @@ Take some time to think about this before reading the solution. Don't spoil the 
 Here is a proof with the right loop invariant. We also show a couple more tricks to make this proof easier.
 
 |*)
-
-Context `{!stdG Σ}.
 
 Lemma wp_SumN (n: w64) :
   {{{ is_pkg_init functional ∗ ⌜uint.Z n < 2^64-1⌝ }}}
@@ -350,9 +349,9 @@ Definition is_sorted (xs: list w64) :=
                   uint.Z x1 < uint.Z x2.
 
 Lemma wp_BinarySearch (s: slice.t) (xs: list w64) (needle: w64) :
-  {{{ is_pkg_init heap.heap ∗
+  {{{ is_pkg_init pkg_id.heap ∗
         s ↦* xs ∗ ⌜is_sorted xs⌝ }}}
-    @! heap.heap.BinarySearch #s #needle
+    @! heap.BinarySearch #s #needle
   {{{ (i: w64) (ok: bool), RET (#i, #ok);
       s ↦* xs ∗
       ⌜ok = true → xs !! sint.nat i = Some needle⌝
@@ -392,8 +391,8 @@ Proof.
   }
   wp_for "HI".
   - wp_if_destruct.
-    + wp_pure.
-      { rewrite word.signed_add.
+    + rewrite -> decide_True.
+      2:{ rewrite word.signed_add.
         rewrite Automation.word.word_signed_divs_nowrap_pos; [ word | ].
         word. }
       set (mid := word.add i (word.divs (word.sub j i) (W64 2)) : w64).
@@ -403,7 +402,7 @@ Proof.
         rewrite Automation.word.word_signed_divs_nowrap_pos; [ word | ].
         word. }
       list_elem xs (sint.nat mid) as x_mid.
-      wp_apply (wp_load_slice_elem with "[$Hs]") as "Hs".
+      wp_apply (wp_load_slice_index with "[$Hs]") as "Hs".
       { word. }
       { eauto. }
       wp_if_destruct.
@@ -444,9 +443,8 @@ Proof.
         lia.
     + wp_if_destruct.
       * list_elem xs (sint.nat i) as x_i.
-        wp_pure.
-        { word. }
-        wp_apply (wp_load_slice_elem with "[$Hs]") as "Hs".
+        rewrite -> decide_True; last word.
+        wp_apply (wp_load_slice_index with "[$Hs]") as "Hs".
         { word. }
         { eauto. }
         wp_end.

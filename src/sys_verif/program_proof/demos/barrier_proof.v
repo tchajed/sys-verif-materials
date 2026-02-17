@@ -57,14 +57,13 @@ Class barrierG Σ := BarrierG {
     barrier_saved_propG :: savedPropG Σ;
     barrier_auth_setG :: auth_setG Σ gname;
     barrier_syncG :: syncG Σ;
-    barrier_stdG :: stdG Σ;
   }.
 
 Definition barrierΣ: gFunctors :=
   #[ savedPropΣ; auth_setΣ gname; syncΣ ].
 
 #[global] Instance subG_barrierG Σ : subG barrierΣ Σ → barrierG Σ.
-Proof. (* solve_inG. Qed. *) Admitted.
+Proof. solve_inG. Qed.
 
 Section proof.
   Context `{hG: heapGS Σ} `{!ffi_semantics _ _}

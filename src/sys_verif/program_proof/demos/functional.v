@@ -121,14 +121,12 @@ Section proof.
       wp_end.
   Qed.
 
-  Context `{!stdG Σ}.
-
   Lemma wp_SumN (n: w64) :
     {{{ is_pkg_init functional ∗ ⌜uint.Z n < 2^64-1⌝ }}}
       @! functional.SumN #n
     {{{ (m: w64), RET #m;
         ⌜uint.Z m = uint.Z n * (uint.Z n + 1) / 2⌝ }}}.
-  Proof using W + stdG0.
+  Proof using W.
     wp_start as "%Hn_bound".
     wp_auto.
 

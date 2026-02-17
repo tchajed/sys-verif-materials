@@ -4,7 +4,10 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Module atomic_int.
 Section proof.
-  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+  Context `{!syncG Σ}.
+  Collection W := sem + package_sem + syncG0.
+  Set Default Proof Using "W".
 
   Definition lock_inv (l: loc) (P: w64 → iProp Σ) : iProp _ :=
     ∃ (x: w64),
@@ -33,11 +36,10 @@ Section proof.
     wp_start as "HP".
     wp_alloc m_ptr as "m"; wp_auto.
     wp_alloc l as "Hint".
-    iApply struct_fields_split in "Hint". iNamed "Hint".
-    cbn [concurrent.AtomicInt.x' concurrent.AtomicInt.mu'].
-    iPersist "Hmu".
+    iStructNamed "Hint". simpl.
+    iPersist "mu".
     iMod (init_Mutex (lock_inv l P)
-           with "m [HP Hx]") as "Hlock".
+           with "m [HP x]") as "Hlock".
     { iFrame. }
     wp_auto.
     iApply "HΦ".

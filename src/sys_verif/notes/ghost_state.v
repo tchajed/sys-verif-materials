@@ -142,7 +142,11 @@ From Perennial.algebra Require Import ghost_var.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+Context `{!stdG Σ} `{!syncG Σ}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
+
 Context `{ghost_varG0: ghost_varG Σ Z}.
 Open Scope Z_scope.
 
@@ -205,7 +209,7 @@ Check (@ghost_var_persist Σ). (* {OUTPUT} *)
 
 (*| The second property about persistence is what makes discardable fractions especially useful: |*)
 
-Check (@ghost_var_persistent Σ). (* {OUTPUT} *)
+(* Check (@ghost_var_persistent Σ). (* {OUTPUT} *) *)
 
 (*| ### Proof of the ParallelAdd example
 
@@ -276,7 +280,6 @@ Proof using All.
     wp_apply (wp_Mutex__Unlock with "[-HΦ Hx2_2 $Hlock $locked]").
     { iFrame.
       iPureIntro. split_and!; try word. }
-    wp_auto.
     iApply "HΦ". iFrame.
   }
   iIntros (h_2) "#Hjh2".

@@ -66,8 +66,7 @@ From Perennial Require Import base.
 dispatched by initialization, a process that runs before any other program code. *)
 Section proof.
 Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : heap.Assumptions}.
-Context `{!stdG Σ}.
-Collection W := sem + package_sem + stdG0.
+Collection W := sem + package_sem.
 Set Default Proof Using "W".
 
 (*| Every Go package must define its initialization predicate, a proposition

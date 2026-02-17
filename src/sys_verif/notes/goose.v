@@ -285,7 +285,9 @@ From sys_verif.program_proof Require Import heap_init functional_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : functional.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*| Code being verified:
 ```go
