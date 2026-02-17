@@ -82,7 +82,7 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 (*
 func SetX(x *uint64) {

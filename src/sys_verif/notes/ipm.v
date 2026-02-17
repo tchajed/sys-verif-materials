@@ -399,7 +399,7 @@ All of these are easiest understood by seeing them in context; read on for an ex
 
 Import sys_verif.program_proof.heap_init.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 (*|
 

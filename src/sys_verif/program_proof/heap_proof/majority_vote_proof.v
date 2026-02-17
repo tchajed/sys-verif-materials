@@ -77,7 +77,7 @@ End count_occurrence.
 
 Section goose.
 
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 Lemma wp_FindMajority (a_s: slice.t) q (xs: list w32) (K: w32) :
   {{{ is_pkg_init heap.heap ∗ a_s ↦*{q} xs ∗ ⌜has_majority xs K⌝

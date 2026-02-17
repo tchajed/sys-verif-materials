@@ -7,7 +7,7 @@ From sys_verif.program_proof Require Import demos.barrier_proof.
 
 Module parallel_add_v2.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
   Context `{barrierG0: barrier.barrierG Σ}.
   Context `{inG0: !inG Σ (frac_authR ZR)}.

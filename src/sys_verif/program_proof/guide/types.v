@@ -52,7 +52,7 @@ From sys_verif.program_proof Require Import heap_init.
 
 Section proof.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 (*| Let's see those `IntoVal` instances in use. |*)
 

@@ -124,7 +124,7 @@ Qed.
 
 Section proof.
 Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 (*| This is the invariant that makes the proof work. The inputs all directly
    correspond to the code's variables. Remember that [n0] is the initial value and

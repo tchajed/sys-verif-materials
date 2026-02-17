@@ -64,7 +64,7 @@ Lemma wp_Add_bounded (x y: w64) :
   {{{ (z: w64), RET #z; ⌜uint.Z z = (uint.Z x + uint.Z y)%Z⌝ }}}.
 Proof.
   wp_start as "%Hbound".
-  wp_auto. iApply "HΦ". word. wp_end.
+  wp_auto. wp_end.
   (* wp_alloc b_l as "b". wp_auto. *)
   (* wp_alloc a_l as "a". wp_auto. *)
   (* wp_load. wp_load. wp_auto. (* {GOAL} *) *)

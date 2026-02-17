@@ -106,7 +106,7 @@ Open Scope Z_scope.
 
 Module atomic_int.
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 Context `{!ghost_varG Σ w64}.
 
 Implicit Types (γ: gname).
@@ -360,7 +360,7 @@ However, it is important that the locking that makes the integer atomic is all h
 |*)
 
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 Context `{ghost_varG0: ghost_varG Σ w64}.
 Context `{ghost_varG1: ghost_varG Σ Z}.
 

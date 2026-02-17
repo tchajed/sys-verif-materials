@@ -9,7 +9,7 @@ Open Scope Z_scope.
 
 Module parallel_add_v3.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
   (* "plain" ghost variables ghost state, of type Z *)
   Context `{ghost_varG0: ghost_varG Σ Z}.

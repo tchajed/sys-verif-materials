@@ -142,7 +142,7 @@ From Perennial.algebra Require Import ghost_var.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 Context `{ghost_varG0: ghost_varG Σ Z}.
 Open Scope Z_scope.
 

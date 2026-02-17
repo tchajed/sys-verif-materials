@@ -4,7 +4,7 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Module atomic_int.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
   Definition lock_inv (l: loc) (P: w64 → iProp Σ) : iProp _ :=
     ∃ (x: w64),

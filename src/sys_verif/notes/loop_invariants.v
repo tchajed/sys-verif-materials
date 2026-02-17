@@ -80,7 +80,8 @@ From sys_verif.program_proof Require Import heap_init functional_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : functional.Assumptions}.
+Collection W := sem + package_sem. Set Default Proof Using "W".
 
 (*|
 
@@ -96,18 +97,19 @@ Lemma wp_SumNrec (n: w64) :
   {{{ (m: w64), RET #m; ⌜uint.Z m = uint.Z n * (uint.Z n + 1) / 2⌝ }}}.
 Proof.
   (* Löb induction is a somewhat magical principle that says we can assume our function is correct while proving it, as long as we only use its correctness for _recursive_ subcalls (to avoid circular reasoning). The intuitive reason why this makes sense is that we only prove partial correctness, so we assume the function terminates. Given that assumption, what we're doing is  induction on the number of steps the function takes to terminate. *)
-  iLöb as "IH" forall (n).
+  iLöb as "IH" forall (n). iFreeze "IH".
   wp_start as "%Hoverflow". (* {GOAL} *)
+  iThaw "IH".
 (*| Notice here how Löb induction gives us the correctness of `functional.SumNrec` as an assumption, but the goal is a proof about the body of that function, so `"IH"` is only useful for recursive calls. |*)
   wp_auto.
   wp_if_destruct.
-  - wp_finish.
-  - wp_apply "IH".
+  - wp_end.
+  - iThaw "IH". wp_apply "IH".
     { (* [word] doesn't work on its own here (possibly a bug in the tactic). It's helpful to know how to do some of the work it does manually, to help it along. *)
       rewrite -> !word.unsigned_sub_nowrap by word.
       word. }
     iIntros (m Hm).
-    wp_finish.
+    wp_end.
 Qed.
 
 (*|
@@ -162,7 +164,7 @@ Proof.
   wp_if_destruct.
   - (* the code breaks in this branch, at which point we have to verify the code after the loop *)
     wp_for_post.
-    wp_finish.
+    wp_end.
     iPureIntro.
     (* oops, don't know anything about sum *)
     admit.
@@ -191,6 +193,8 @@ Here is a proof with the right loop invariant. We also show a couple more tricks
 
 |*)
 
+Context `{!stdG Σ}.
+
 Lemma wp_SumN (n: w64) :
   {{{ is_pkg_init functional ∗ ⌜uint.Z n < 2^64-1⌝ }}}
     @! functional.SumN #n
@@ -213,7 +217,7 @@ Proof.
   wp_if_destruct.
   - wp_for_post. (* {GOAL} *)
     (*| With this correct loop invariant, notice the extra pure facts we have when the loop `break`s: `i_bound` and `Hsum_ok` come from the loop invariant, and `n < i` comes from the `if` test we just did.  |*)
-    wp_finish.
+    wp_end.
     iPureIntro.
     (*| The combination of the invariant and that test guarantee `i = n + 1`. |*)
     assert (uint.Z i = (uint.Z n + 1)%Z) by word.
@@ -284,7 +288,7 @@ Proof.
       (uint.Z i * (uint.Z i - 1) + uint.Z i * 2) by lia.
     rewrite Z_div_plus; [ lia | ].
     lia.
-  - wp_finish.
+  - wp_end.
     iPureIntro.
     assert (sint.Z i = sint.Z n) by word.
     word.
@@ -445,13 +449,13 @@ Proof.
         wp_apply (wp_load_slice_elem with "[$Hs]") as "Hs".
         { word. }
         { eauto. }
-        wp_finish.
+        wp_end.
         iFrame.
         iPureIntro.
         intros Heq.
         apply bool_decide_eq_true_1 in Heq. subst.
         auto.
-      * wp_finish.
+      * wp_end.
 Qed.
 
 (*|

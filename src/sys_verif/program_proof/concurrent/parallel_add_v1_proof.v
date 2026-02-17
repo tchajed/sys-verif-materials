@@ -7,7 +7,7 @@ From sys_verif.program_proof.concurrent Require Import atomic_int_proof.
 
 Module parallel_add_v1.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
   (* we need "plain ghost variable" ghost state *)
   Context `{ghost_varG0: ghost_varG Σ Z}.

@@ -18,7 +18,7 @@ fn clean_goal_display(goal: &str) -> String {
     // remove these boilerplate lines of Context from web output, to keep goals
     // shorter
     static FILTER_RE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(Σ : gFunctors|heapGS0 : heapGS Σ|hG : heapGS Σ|globalsGS0 : globalsGS Σ|go_ctx : GoContext)")
+        Regex::new(r"(Σ : gFunctors|heapGS0 : heapGS Σ|hG : heapGS Σ|sem : go.Semantics)")
             .unwrap()
     });
     goal.lines()

@@ -40,7 +40,7 @@ From sys_verif.program_proof Require Import prelude empty_ffi.
 From sys_verif.program_proof Require Import heap_init.
 
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
 
 
 (*| `tree_root` is the core definition of a (non-empty) tree rooted at some key.
