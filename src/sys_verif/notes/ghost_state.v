@@ -143,7 +143,6 @@ From Perennial.algebra Require Import ghost_var.
 Section goose.
 Context `{hG: !heapGS Σ}.
 Context {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
-Context `{!stdG Σ} `{!syncG Σ}.
 Collection W := sem + package_sem.
 Set Default Proof Using "W".
 

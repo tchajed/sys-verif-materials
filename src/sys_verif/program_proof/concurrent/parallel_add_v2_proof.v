@@ -7,7 +7,9 @@ From sys_verif.program_proof Require Import demos.barrier_proof.
 
 Module parallel_add_v2.
 Section proof.
-  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
 
   Context `{barrierG0: barrier.barrierG Σ}.
   Context `{inG0: !inG Σ (frac_authR ZR)}.
@@ -92,7 +94,6 @@ Section proof.
     wp_apply (wp_Mutex__Unlock with "[$Hlock $Hlocked $x Hauth]").
     { iModIntro. rewrite /named.
       iExactEq "Hauth". repeat (f_equal; try word). }
-    wp_auto.
     iApply "HΦ".
     iPureIntro.
     word.

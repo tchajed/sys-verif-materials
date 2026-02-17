@@ -9,7 +9,9 @@ Open Scope Z_scope.
 
 Module parallel_add_v3.
 Section proof.
-  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
 
   (* "plain" ghost variables ghost state, of type Z *)
   Context `{ghost_varG0: ghost_varG Σ Z}.
@@ -64,7 +66,6 @@ Section proof.
       wp_apply (wp_Mutex__Unlock with "[-HΦ Hx2_2 $Hlock $locked]").
       { iFrame.
         iPureIntro. split_and!; try word. }
-      wp_auto.
       iApply "HΦ". iFrame.
     }
     iIntros (h_2_ptr) "Hjh2".

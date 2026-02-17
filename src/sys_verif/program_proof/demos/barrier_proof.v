@@ -56,7 +56,6 @@ related to [Σ] as an Iris technicality. *)
 Class barrierG Σ := BarrierG {
     barrier_saved_propG :: savedPropG Σ;
     barrier_auth_setG :: auth_setG Σ gname;
-    barrier_syncG :: syncG Σ;
   }.
 
 Definition barrierΣ: gFunctors :=

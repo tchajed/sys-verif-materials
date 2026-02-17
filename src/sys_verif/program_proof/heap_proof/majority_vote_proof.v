@@ -77,12 +77,14 @@ End count_occurrence.
 
 Section goose.
 
-Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 Lemma wp_FindMajority (a_s: slice.t) q (xs: list w32) (K: w32) :
-  {{{ is_pkg_init heap.heap ∗ a_s ↦*{q} xs ∗ ⌜has_majority xs K⌝
+  {{{ is_pkg_init heap ∗ a_s ↦*{q} xs ∗ ⌜has_majority xs K⌝
   }}}
-    @! heap.heap.FindMajority #a_s
+    @! heap.FindMajority #a_s
   {{{ RET #K; a_s ↦*{q} xs }}}.
 Proof.
   wp_start as "[Ha %Hmajority]".
@@ -92,9 +94,8 @@ Proof.
   list_elem xs 0 as x0.
   iDestruct (own_slice_len with "Ha") as %Hsz.
   wp_auto.
-  wp_pure.
-  { word. }
-  wp_apply (wp_load_slice_elem with "[$Ha]").
+  rewrite -> decide_True; last word.
+  wp_apply (wp_load_slice_index with "[$Ha]").
   { word. }
   { eauto. }
   iIntros "Ha".
@@ -102,7 +103,7 @@ Proof.
   iPersist "a l".
 
   iAssert (∃ (k0: w32) (lo hi c: w64),
-          "Ha" ∷ own_slice a_s q xs ∗
+          "Ha" ∷ a_s ↦*{q} xs ∗
           "k" ∷ k_ptr ↦ k0 ∗
           "lo" ∷ lo_ptr ↦ lo ∗
           "hi" ∷ hi_ptr ↦ hi ∗
@@ -131,9 +132,8 @@ Proof.
   wp_for "HI".
   wp_if_destruct.
   - list_elem xs (sint.Z hi) as hi_elem.
-    wp_pure.
-    { word. }
-    wp_apply (wp_load_slice_elem with "[$Ha]") as "Ha"; [ word | by eauto | ].
+    rewrite -> decide_True; last word.
+    wp_apply (wp_load_slice_index with "[$Ha]") as "Ha"; [ word | by eauto | ].
     admit.
   - iDestruct ("HΦ" with "Ha") as "HΦ".
     iExactEq "HΦ".

@@ -21,8 +21,7 @@ From Perennial.algebra Require Import ghost_var.
 Module atomic_ptr.
 Section proof.
   Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : hashmap.Assumptions}.
-  Context `{!syncG Σ}.
-  Collection W := sem + package_sem + syncG0.
+  Collection W := sem + package_sem.
   Set Default Proof Using "W".
 
   Context `{!ghost_varG Σ loc}.
@@ -139,8 +138,7 @@ Import atomic_ptr.
 
 Section proof.
   Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : hashmap.Assumptions}.
-  Context `{!syncG Σ}.
-  Collection W := sem + package_sem + syncG0.
+  Collection W := sem + package_sem.
   Set Default Proof Using "W".
 
   Context `{!ghost_varG Σ loc}.

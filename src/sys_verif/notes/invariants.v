@@ -261,8 +261,7 @@ Lemma wp_FirstLock_v2 :
   {{{ (y: w64), RET #y; ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝ }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_auto.
-  wp_alloc_auto; wp_auto.
+  wp_auto.
   iMod (init_Mutex (∃ (y: w64),
                   "x" :: x_ptr ↦ y ∗
                   "%Hx" :: ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝)%I

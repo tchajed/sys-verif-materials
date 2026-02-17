@@ -5,8 +5,7 @@ From sys_verif.program_proof Require Import concurrent_init.
 Module atomic_int.
 Section proof.
   Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
-  Context `{!syncG Σ}.
-  Collection W := sem + package_sem + syncG0.
+  Collection W := sem + package_sem.
   Set Default Proof Using "W".
 
   Definition lock_inv (l: loc) (P: w64 → iProp Σ) : iProp _ :=

@@ -399,7 +399,9 @@ All of these are easiest understood by seeing them in context; read on for an ex
 
 Import sys_verif.program_proof.heap_init.
 Context `{hG: !heapGS Σ}.
-Context {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+Context {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*|
 
@@ -473,14 +475,13 @@ Lemma wp_UseIgnoreOneOwnership :
 Proof.
   wp_start as "Hpre". (* precondition is trivial, but we'll name it anyway *) (*
 {GOAL} *)
-  rewrite -default_val_eq_zero_val. (* only for demo; needed due to using iApply wp_alloc below *)
 
 (*|
 The next step in the proof outline is this call to `ref_to`, which allocates.
 
 Formally, the proof proceeds by applying the bind rule (to split the program into `alloc #(default_val w64)` and the rest of the code that uses this value). We can use an IPM tactic to automate this process, in particular identifying the context `K` in the bind rule.
  |*)
-  wp_bind (alloc #(default_val w64))%E. (* {GOAL} *)
+  wp_bind (GoAlloc go.int #(W64 0))%E. (* {GOAL} *)
 
 (*|
 Take a moment to read this goal: it says we need to prove a specification for just `alloc` in which the postcondition contains the remainder of the code. Where the original code had `alloc ...` it now has `v`, the return value of allocating; this is `K[v]` from the bind rule.
@@ -499,13 +500,13 @@ The next step you'd expect is that we need to use the rule of consequence to pro
   iIntros (x) "Hx".
 
 (*| At this point there is a `let:` binding which we need to apply the pure-step rule to. Thankfully, the IPM has automation to handle this for us.  |*)
-  wp_auto. (* {GOAL DIFF} *)
+  wp_pures. (* {GOAL DIFF} *)
 
 (*| The IPM can automate all of the above for allocation, load, and store: |*)
-  wp_store. wp_auto.
+  wp_store. wp_pures.
   wp_alloc y as "Hy".
-  wp_auto.
-  wp_store. wp_auto.
+  wp_pures.
+  wp_store. wp_pures.
   wp_bind (@! heap.IgnoreOne _ _)%E. (* make the goal easier to understand *) (* {GOAL} *)
 
 (*| You might think we should do `iApply wp_IgnoreOne`. Let's see what happens if we do that: |*)
@@ -550,7 +551,7 @@ Definition f: val := λ: <>, #().
 Definition g: val := λ: "x", f "x";; #(W64 1).
 Definition h: val := λ: "l",
     let: "y" := g "l" in
-    ![#uint32T] "l";;
+    ![go.uint32] "l";;
     "y".
 
 Lemma wp_f l (x: w32) :
@@ -559,7 +560,6 @@ Lemma wp_f l (x: w32) :
   {{{ RET #(); l ↦ x }}}.
 Proof.
   wp_start as "l".
-  wp_call.
   iApply "HΦ".
 (* EXERCISE: Admitted. *)
 (* SOLUTION *)
@@ -574,7 +574,6 @@ Lemma wp_g (l: loc) (x: w32) :
   {{{ (y: w64), RET #y; ⌜uint.Z y < 10⌝ ∗ l ↦ x }}}.
 Proof.
   wp_start as "l".
-  wp_call.
 (* EXERCISE: Admitted. *)
 (* SOLUTION *)
   wp_bind (f _).
@@ -599,7 +598,6 @@ Proof.
 (* EXERCISE: Admitted. *)
 (* SOLUTION *)
   wp_start as "l".
-  wp_call.
   wp_apply (wp_g with "[$l]").
   iIntros "%y [%Hy l]"; wp_auto.
   iApply "HΦ".

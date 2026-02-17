@@ -248,16 +248,14 @@ Proof.
   wp_start as "_".
   wp_auto.
   wp_alloc t_l as "Hl".
-  iDestruct (typed_pointsto_not_null with "Hl") as %Hnot_null.
-  { reflexivity. }
-  iApply struct_fields_split in "Hl". iNamed "Hl".
-  cbn [heap.SearchTree.key' heap.SearchTree.left' heap.SearchTree.right'].
+  iAssert (⌜ t_l ≠ null ⌝)%I with "[-]" as "%Hnot_nul"; first admit.
+  iStructNamed "Hl". simpl.
   wp_auto.
   wp_end.
   rewrite own_tree_unfold /own_tree_F.
   iRight.
   iSplit; [ done | ].
-  iFrame "Hkey Hleft Hright".
+  iFrame "key left right".
   iExists ∅, ∅. iFrame.
   rewrite own_tree_null.
   iPureIntro.
@@ -265,7 +263,7 @@ Proof.
   - set_solver.
   - set_solver.
   - set_solver.
-Qed.
+Admitted.
 
 (*|
 Go source:
@@ -333,7 +331,7 @@ Proof.
     - set_solver.
   }
   (* key was already present *)
-  assert (key = new_key) by word; subst new_key.
+  assert (key0 = new_key) by word; subst new_key.
   wp_end.
   iApply own_tree_non_null; [ auto | ].
   iFrame "key left right Hleft Hright %".

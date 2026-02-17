@@ -7,7 +7,9 @@ From sys_verif.program_proof.concurrent Require Import atomic_int_proof.
 
 Module parallel_add_v1.
 Section proof.
-  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : FILLME.Assumptions}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
 
   (* we need "plain ghost variable" ghost state *)
   Context `{ghost_varG0: ghost_varG Σ Z}.
@@ -22,7 +24,7 @@ Section proof.
     {{{ is_pkg_init concurrent }}}
       @! concurrent.ParallelAdd1 #()
     {{{ (x: w64), RET #x; ⌜uint.Z x = 4⌝ }}}.
-  Proof using ghost_varG0.
+  Proof using W + ghost_varG0.
     wp_start as "_".
     wp_auto.
     iMod (ghost_var_alloc 0) as (γ1) "[Hv1_1 Hx1_2]".
