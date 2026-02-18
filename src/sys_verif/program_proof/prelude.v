@@ -1,5 +1,6 @@
 (* slightly extend Perennial's proof setup *)
 From New.proof Require Export proof_prelude.
+From New.golang Require Export theory.
 From iris_named_props Require Import named_props.
 From sys_verif Require Export options.
 From Coq Require Import Strings.Ascii.
@@ -17,17 +18,3 @@ These notations need to be distinct from the fupd notations (otherwise those
 don't parse), so they include a Unicode zero-width space after the => *)
 Notation "|={ E }=>​ Q" := (ncfupd E E Q) (only printing, at level 200, E at level 50) : bi_scope.
 Notation "|==>​ Q" := (ncfupd ⊤ ⊤ Q) (only printing, at level 200) : bi_scope.
-
-Ltac wp_finish :=
-  wp_pures;
-  repeat iModIntro;
-  first [
-      iApply "HΦ" |
-      (* if HΦ doesn't unify, maybe an equality proof is needed *)
-      iDestruct ("HΦ" with "[-]") as "HΦ"; [ | iExactEq "HΦ"; f_equal ]
-  ];
-  try solve [
-      auto;
-      iFrame;
-      word
-  ].

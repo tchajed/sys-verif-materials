@@ -13,7 +13,9 @@ tags: literate
 From sys_verif.program_proof Require Import prelude empty_ffi.
 
 Section proof.
-Context `{hG: !heapGS Σ}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics}.
+Collection W := sem.
+Set Default Proof Using "W".
 (* /OMIT-WEB *)
 
 (*|
@@ -33,19 +35,19 @@ reads and writes.
 
 Lemma read_spec (l: loc) (x: w64) :
   {{{ l ↦ x }}}
-    ![#uint64T] #l
+    ![go.uint64] #l
   {{{ RET #x; l ↦ x }}}.
 Proof.
-  wp_start as "H". wp_apply (wp_load_ty with "H"). (* NOTE: needed to strip later *)
+  wp_start as "H". wp_apply (wp_load with "H"). (* NOTE: needed to strip later *)
   iIntros "H". iApply "HΦ". iFrame.
 Qed.
 
 Lemma write_spec (l: loc) (x x': w64) :
   {{{ l ↦ x }}}
-    #l <-[#uint64T] #x'
+    #l <-[go.uint64] #x'
   {{{ RET #(); l ↦ x' }}}.
 Proof.
-  wp_start as "H". wp_apply (wp_store_ty with "H"). (* NOTE: needed to strip later *)
+  wp_start as "H". wp_pures. wp_apply (wp_store with "H"). (* NOTE: needed to strip later *)
   iIntros "H". iApply "HΦ". iFrame.
 Qed.
 
@@ -94,10 +96,10 @@ Qed.
 Rocq, `Qp` (the name is supposed to evoke "positive rational"). |*)
 Lemma read_frac_spec l (x: w64) (q: Qp) :
   {{{ l ↦{#q} x }}}
-    ![#uint64T] #l
+    ![go.uint64] #l
   {{{ RET #x; l ↦{#q} x }}}.
 Proof.
-  wp_start as "H". wp_apply (wp_load_ty with "H"). iIntros "H".
+  wp_start as "H". wp_apply (wp_load with "H"). iIntros "H".
   iApply "HΦ". iFrame.
 Qed.
 
@@ -162,7 +164,7 @@ state.
 
 Lemma alloc_ro_spec (x: w64) :
   {{{ True }}}
-    alloc #x
+    GoAlloc go.uint64 #x
   {{{ (l: loc), RET #l; l ↦□ x }}}.
 Proof.
   (* This proof is a bit odd because it's just a single allocation, so the
@@ -185,11 +187,11 @@ Qed.
 permission need not be returned in the postcondition. |*)
 Lemma read_discarded_spec (l: loc) (x: w64) :
   {{{ l ↦□ x }}}
-    ![#uint64T] #l
+    ![go.uint64] #l
   {{{ RET #x; True }}}.
 Proof.
   wp_start as "#H".
-  wp_apply (wp_load_ty with "H"). iIntros "_".
+  wp_apply (wp_load with "H"). iIntros "_".
   iApply "HΦ". auto.
 Qed.
 

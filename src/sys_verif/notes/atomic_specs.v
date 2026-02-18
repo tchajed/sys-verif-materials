@@ -55,7 +55,7 @@ func (i *AtomicInt) Inc(y uint64) {
 
 Let's remember what the spec would look like without concurrency. Suppose we re-implemented this code with the same API but with a struct `SequentialInt` with a single integer field `x` - no locks, and the caller would not be allowed to share the data structure between threads.
 
-We would start with a predicate `int_rep (l: loc) (x: w64) : iProp Σ` that related a pointer to an integer in GooseLang to an abstract value. We choose to use `w64` as the abstract value, but it could also be `Z`; this spec has the advantage that it automatically guarantees the value of the integer is less than $2^{64}$. The predicate would be very simple: `int_rep l x := l ↦s[SequentialInt :: "x"] x` would be enough.
+We would start with a predicate `int_rep (l: loc) (x: w64) : iProp Σ` that related a pointer to an integer in GooseLang to an abstract value. We choose to use `w64` as the abstract value, but it could also be `Z`; this spec has the advantage that it automatically guarantees the value of the integer is less than $2^{64}$. The predicate would be very simple: `int_rep l x := l.[SequentialInt.t, "x"] ↦ x` would be enough.
 
 Then the specification for `wp_SequentialInt__Inc` would say
 
@@ -106,7 +106,9 @@ Open Scope Z_scope.
 
 Module atomic_int.
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 Context `{!ghost_varG Σ w64}.
 
 Implicit Types (γ: gname).
@@ -133,12 +135,12 @@ Proof. apply _. Qed.
 (* this is local because even the existence of this predicate is not important to the user *)
 #[local] Definition lock_inv γ (l: loc) : iProp _ :=
   ∃ (x: w64),
-      "Hx" ∷ l ↦s[concurrent.AtomicInt :: "x"] x ∗
+      "Hx" ∷ l.[concurrent.AtomicInt.t, "x"] ↦ x ∗
       "Hauth" ∷ ghost_var γ (DfracOwn (1/2)) x.
 
 Definition is_atomic_int γ (l: loc) : iProp _ :=
   ∃ (mu_l: loc),
-  "mu" ∷ l ↦s[concurrent.AtomicInt :: "mu"]□ mu_l ∗
+  "mu" ∷ l.[concurrent.AtomicInt.t, "mu"] ↦□ mu_l ∗
   "Hlock" ∷ is_Mutex mu_l (lock_inv γ l).
 
 #[global] Opaque is_atomic_int.
@@ -157,9 +159,8 @@ Proof.
   wp_alloc mu_ptr as "mu".
   wp_auto.
   wp_alloc l as "Hint".
-  iApply struct_fields_split in "Hint".
-  iNamed "Hint".
-  cbn [concurrent.AtomicInt.x' concurrent.AtomicInt.mu'].
+  iStructNamedPrefix "Hint" "H".
+  simpl.
   iPersist "Hmu".
   iMod (ghost_var_alloc (W64 0)) as (γ) "Hown".
   iDestruct "Hown" as "[Hown Hauth]".
@@ -173,7 +174,7 @@ Qed.
 Lemma wp_AtomicInt__Inc_sequential_spec γ l (x y: w64) :
   {{{ is_pkg_init concurrent ∗ is_atomic_int γ l ∗
         own_int γ x }}}
-    l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y
+    l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y
   {{{ RET #(); own_int γ (word.add x y) }}}.
 Proof.
   wp_start as "[#Hint Hown]".
@@ -195,7 +196,6 @@ Proof.
   { (* re-prove the lock invariant; this only works because of the ghost var update *)
     iFrame. }
 
-  wp_pures.
   iApply "HΦ".
   done.
 Qed.
@@ -221,7 +221,7 @@ Lemma wp_AtomicInt__Get_triple γ l (Q: w64 → iProp Σ) :
   {{{ is_pkg_init concurrent ∗
   is_atomic_int γ l ∗
   |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ x ={∅,⊤}=∗ Q x) }}}
-    l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #()
+    l @! (go.PointerType concurrent.AtomicInt) @! "Get" #()
   {{{ (x: w64), RET #x; Q x }}}.
 Proof.
   wp_start as "(#Hint & Hau)".
@@ -259,15 +259,12 @@ The specification above is a bit inconvenient since the caller needs to decide w
 Lemma wp_AtomicInt__Get γ l :
   ∀ (Φ: val → iProp Σ),
   (is_pkg_init concurrent ∗
-  is_atomic_int γ l ∗
-  |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ x ={∅,⊤}=∗ Φ #x)) -∗
-  WP l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #() {{ Φ }}.
+  is_atomic_int γ l) -∗
+  (|={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ x ={∅,⊤}=∗ Φ #x)) -∗
+  WP l @! (go.PointerType concurrent.AtomicInt) @! "Get" #() {{ Φ }}.
 Proof.
-  (* wp_start doesn't support a specification like this (which isn't quite a Hoare triple) *)
-  iIntros (Φ) "(#? & #Hint & Hau)".
-  wp_method_call. wp_call.
-  iNamed "Hint".
-  wp_auto.
+  wp_start as "#Hint". iRename "HΦ" into "Hau".
+  iNamed "Hint". wp_auto.
 
   (* from here the proof is the same: acquire the mutex, change the ghost var, release the mutex *)
   wp_apply (wp_Mutex__Lock with "[$Hlock]").
@@ -293,12 +290,11 @@ To wrap up the AtomicInt spec we give the real specification for `Inc`, which st
 |*)
 Lemma wp_AtomicInt__Inc γ l (y: w64) :
   ∀ Φ,
-  (is_pkg_init concurrent ∗ is_atomic_int γ l ∗
-   |={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ (word.add x y) ={∅,⊤}=∗ Φ #())) -∗
-    WP l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y {{ Φ }}.
+  (is_pkg_init concurrent ∗ is_atomic_int γ l) -∗
+  (|={⊤,∅}=> ∃ x, own_int γ x ∗ (own_int γ (word.add x y) ={∅,⊤}=∗ Φ #())) -∗
+  WP l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y {{ Φ }}.
 Proof.
-  iIntros (Φ) "(#? & #Hint & Hau)".
-  wp_method_call. wp_call.
+  wp_start as "#Hint". iRename "HΦ" into "Hau".
   iNamed "Hint".
   wp_auto.
   wp_apply (wp_Mutex__Lock with "[$Hlock]").
@@ -360,7 +356,9 @@ However, it is important that the locking that makes the integer atomic is all h
 |*)
 
 Section proof.
-Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 Context `{ghost_varG0: ghost_varG Σ w64}.
 Context `{ghost_varG1: ghost_varG Σ Z}.
 
@@ -381,7 +379,7 @@ Lemma wp_ParallelAdd1 :
   {{{ is_pkg_init concurrent }}}
     @! concurrent.ParallelAdd1 #()
   {{{ (x: w64), RET #x; ⌜uint.Z x = 4⌝ }}}.
-Proof using ghost_varG0 ghost_varG1.
+Proof using ghost_varG0 ghost_varG1 W.
   wp_start as "_".
   wp_auto.
 
@@ -407,8 +405,7 @@ Proof using ghost_varG0 ghost_varG1.
     iRename "Hx1_2" into "Hx".
     iIntros (Φ) "HΦ".
     wp_auto.
-    wp_apply (atomic_int.wp_AtomicInt__Inc).
-    iFrame "His_int".
+    wp_apply (atomic_int.wp_AtomicInt__Inc with "[$]").
     (* This boilerplate opens this invariant *)
     iInv "Hinv" as ">HI" "Hclose".
     iApply fupd_mask_intro; [ set_solver | iIntros "Hmask" ].
@@ -442,8 +439,7 @@ Proof using ghost_varG0 ghost_varG1.
     iRename "Hx2_2" into "Hx".
     iIntros (Φ) "HΦ".
     wp_auto.
-    wp_apply (atomic_int.wp_AtomicInt__Inc).
-    iFrame "His_int".
+    wp_apply (atomic_int.wp_AtomicInt__Inc with "[$]").
 
     (* open invariant *)
     iInv "Hinv" as ">HI" "Hclose".
@@ -475,8 +471,7 @@ Proof using ghost_varG0 ghost_varG1.
   wp_apply (std.wp_JoinHandle__Join with "[$Hh2]").
   iIntros "Hx2_2".
   wp_auto.
-  wp_apply (atomic_int.wp_AtomicInt__Get).
-  iFrame "His_int".
+  wp_apply (atomic_int.wp_AtomicInt__Get with "[$]").
 
   iInv "Hinv" as ">HI" "Hclose".
   iApply fupd_mask_intro; [ solve_ndisj | iIntros "Hmask" ].

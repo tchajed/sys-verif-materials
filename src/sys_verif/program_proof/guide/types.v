@@ -15,6 +15,7 @@ This reference explains how the type setup works.
 
 It will help a good deal in following the details here to understand typeclasses in Rocq. Practically to do proofs you might not interact with them much, but some understanding will help you understand error messages when things go wrong. A good but long tutorial is included in [Software Foundations](https://softwarefoundations.cis.upenn.edu/qc-current/Typeclasses.html).
 
+FIXME: out of date. No more typeclass
 The most important typeclass for Goose is `IntoVal V`. Its definition is the following:
 
 ```rocq
@@ -52,15 +53,17 @@ From sys_verif.program_proof Require Import heap_init.
 
 Section proof.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*| Let's see those `IntoVal` instances in use. |*)
 
-Definition int_to_val (x: w64): val := to_val x.
-Definition int_to_val_notation (x: w64): val := #x.
+Definition int_into_val (x: w64): val := into_val x.
+Definition int_into_val_notation (x: w64): val := #x.
 
 (* these even print the same *)
-Lemma notation_is_to_val (x: w64) : #x = to_val x.
+Lemma notation_is_to_val (x: w64) : #x = into_val x.
 Proof. reflexivity. Qed.
 
 (*| Points-to assertions always bake in the `IntoVal`, so you don't write `l ↦ #x` but just `l ↦ x`. Let's confirm the type signature, which requires first knowing what the notation expands to: |*)
@@ -96,74 +99,68 @@ Check {| heap.Person.FirstName' := "Ada";
 
 (*| proofgen gives us an `IntoVal heap.Person.t` instance, which we can use to state a points-to for a whole struct: |*)
 Lemma wp_ExamplePersonRef :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
       l ↦ (heap.Person.mk "Ada" "Lovelace" (W64 25)) }}}.
 Proof.
   wp_start as "_".
   wp_alloc l as "p".
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| We can split a points-to for a struct into its component fields. This is also implemented by proofgen, which implements the `StructFieldsSplit` typeclass. That class is more complicated because it's not a function but in fact a proof about the struct points-to. |*)
 Lemma wp_ExamplePersonRef_fields :
-  {{{ is_pkg_init heap.heap }}}
+  {{{ is_pkg_init heap }}}
     @! heap.ExamplePersonRef #()
   {{{ (l: loc), RET #l;
-      l ↦s[heap.Person :: "FirstName"] "Ada"%go ∗
-      l ↦s[heap.Person :: "LastName"] "Lovelace"%go ∗
-      l ↦s[heap.Person :: "Age"] W64 25
+      l.[heap.Person.t, "FirstName"] ↦ "Ada"%go ∗
+      l.[heap.Person.t, "LastName"] ↦ "Lovelace"%go ∗
+      l.[heap.Person.t, "Age"] ↦ W64 25
   }}}.
 Proof.
   wp_start as "#init".
   wp_alloc l as "p".
-  iApply struct_fields_split in "p".
-  (* the output of `struct_fields_split` can be simplified by splitting it with `iNamed` and with `cbn` (or `simpl`). *)
-  iNamed "p".
-  cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
-  wp_finish.
+  iStructNamed "p". simpl.
+  wp_end.
 Qed.
 
 (*| ## Methods on structs
 
-When we state a wp spec for a method (as opposed to a function), we have to say what type the method is for to be unambigious. This is the same information that goes into the Go type signature, just written in a different way. Here we need to reference not the Go type, but its "identifier", a unique name for it. Here's an example of stating such a lemma, where the receiver is a `Person` value (not a pointer). Notice that the type identifier provided is `heap.Person.id`.
+When we state a wp spec for a method (as opposed to a function), we have to say what type the method is for to be unambigious. This is the same information that goes into the Go type signature, just written in a different way. Here we need to reference not the Go type, but its "identifier", a unique name for it. Here's an example of stating such a lemma, where the receiver is a `Person` value (not a pointer). Notice that the type identifier provided is `heap.Person`.
 |*)
 
 Lemma wp_Person__Name (firstName lastName: go_string) (age: w64) :
-  {{{ is_pkg_init heap.heap }}}
-  (heap.Person.mk firstName lastName age) @ heap.Person.id @ "Name" #()
+  {{{ is_pkg_init heap }}}
+  (heap.Person.mk firstName lastName age) @! heap.Person @! "Name" #()
   {{{ RET #(firstName ++ " " ++ lastName)%go; True }}}.
 Proof.
   wp_start as "#init".
-  (* wp_pures will automatically handle these field reference calculations, which compute pointers to the struct fields (at this point the method receiver is behind a pointer because all method arguments are stored on the heap to make them mutable). *)
-  wp_alloc p_l as "p". wp_pures. (* {GOAL DIFF} *)
-  iApply struct_fields_split in "p"; iNamed "p";
-  cbn [heap.Person.FirstName' heap.Person.LastName' heap.Person.Age'].
-  wp_auto.
-  wp_finish.
+  (* wp_auto will automatically handle these field reference calculations, which compute pointers to the struct fields (at this point the method receiver is behind a pointer because all method arguments are stored on the heap to make them mutable). *)
+  wp_alloc p_l as "p". wp_auto. (* {GOAL DIFF} *)
+  wp_end.
   rewrite -app_assoc //.
 Qed.
 
-(*| One more example of a method, this time on a pointer. Thus we need the receiver to be a `loc`, the precondition needs ownership over that pointer (specifically, to all the fields of a `Person` at that location), and finally the receiver type is `(ptrT.id heap.Person.id)` to represent a pointer to a `Person` struct. |*)
+(*| One more example of a method, this time on a pointer. Thus we need the receiver to be a `loc`, the precondition needs ownership over that pointer (specifically, to all the fields of a `Person` at that location), and finally the receiver type is `(go.PointerType heap.Person)` to represent a pointer to a `Person` struct. |*)
 Lemma wp_Person__Older (firstName lastName: byte_string) (age: w64) (p: loc) (delta: w64) :
-  {{{ is_pkg_init heap.heap ∗
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
-      p ↦s[heap.Person :: "Age"] age
+  {{{ is_pkg_init heap ∗
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
+      p.[heap.Person.t, "Age"] ↦ age
   }}}
-    p @ (ptrT.id heap.Person.id) @ "Older" #delta
+    p @! (go.PointerType heap.Person) @! "Older" #delta
   {{{ RET #();
-      p ↦s[heap.Person :: "FirstName"] firstName ∗
-      p ↦s[heap.Person :: "LastName"] lastName ∗
+      p.[heap.Person.t, "FirstName"] ↦ firstName ∗
+      p.[heap.Person.t, "LastName"] ↦ lastName ∗
       (* we avoid overflow reasoning by saying the resulting integer is just
       [word.add age delta], which will wrap at 2^64  *)
-      p ↦s[heap.Person :: "Age"] word.add age delta
+      p.[heap.Person.t, "Age"] ↦ word.add age delta
   }}}.
 Proof.
   wp_start as "(first & last & age)".
   wp_auto.
-  wp_finish.
+  wp_end.
 Qed.
 
 (*| |*)

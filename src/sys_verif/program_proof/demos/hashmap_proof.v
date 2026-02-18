@@ -20,13 +20,16 @@ From Perennial.algebra Require Import ghost_var.
 
 Module atomic_ptr.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : hashmap.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
+
   Context `{!ghost_varG Σ loc}.
 
   Implicit Types (γ: gname).
 
-  #[global] Instance : IsPkgInit hashmap := define_is_pkg_init True%I.
-  #[global] Instance : GetIsPkgInitWf hashmap := build_get_is_pkg_init_wf.
+  #[global] Instance : IsPkgInit (iProp Σ) hashmap := define_is_pkg_init True%I.
+  #[global] Instance : GetIsPkgInitWf (iProp Σ) hashmap := build_get_is_pkg_init_wf.
 
   Definition own_ptr γ (x: loc) :=
     ghost_var γ (DfracOwn (1/2)) x.
@@ -36,12 +39,12 @@ Section proof.
 
   #[local] Definition lock_inv γ l : iProp _ :=
     ∃ (mref: loc),
-      "val" ∷ l ↦s[hashmap.atomicPtr :: "val"] mref ∗
+      "val" ∷ l.[hashmap.atomicPtr.t, "val"] ↦ mref ∗
       "Hauth" ∷ ghost_var γ (DfracOwn (1/2)) mref.
 
   Definition is_atomic_ptr γ (l: loc) : iProp _ :=
     ∃ (mu_l: loc),
-    "mu" ∷ l ↦s[hashmap.atomicPtr :: "mu"]□ mu_l ∗
+    "mu" ∷ l.[hashmap.atomicPtr.t, "mu"] ↦□ mu_l ∗
     "Hlock" ∷ is_Mutex mu_l (lock_inv γ l).
 
   #[global] Instance is_atomic_ptr_persistent γ l : Persistent (is_atomic_ptr γ l).
@@ -57,28 +60,25 @@ Section proof.
     wp_alloc mu_ptr as "mu".
     wp_auto.
     wp_alloc l as "Hptr".
-    iApply struct_fields_split in "Hptr".
-    iNamed "Hptr".
-    cbn [hashmap.atomicPtr.mu' hashmap.atomicPtr.val'].
+    (* iStructNamed "Hptr". FIXME: should say what the non-fresh name is. *)
+    iStructNamedPrefix "Hptr" "H". simpl.
     iPersist "Hmu".
     iMod (ghost_var_alloc m_ref) as (γ) "[Hown Hauth]".
     iMod (init_Mutex (lock_inv γ l)
            with "mu [Hauth Hval]") as "Hlock".
     { iFrame. }
-    wp_auto.
-    wp_finish.
+    wp_end.
     iFrame "#∗".
   Qed.
 
   Lemma wp_atomicPtr__load γ l :
     ∀ (Φ: val → iProp Σ),
     (is_pkg_init hashmap ∗
-    is_atomic_ptr γ l ∗
-    |={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ x ={∅,⊤}=∗ Φ #x)) -∗
-    WP l @ (ptrT.id hashmap.atomicPtr.id) @ "load" #() {{ Φ }}.
+     is_atomic_ptr γ l) -∗
+    (|={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ x ={∅,⊤}=∗ Φ #x)) -∗
+    WP l @! (go.PointerType hashmap.atomicPtr) @! "load" #() {{ Φ }}.
   Proof.
-    iIntros (Φ) "(#? & #Hint & Hau)".
-    wp_method_call. wp_call.
+    wp_start as "#Hint". iRename "HΦ" into "Hau".
     iNamed "Hint".
     wp_auto.
 
@@ -102,12 +102,11 @@ Section proof.
 
   Lemma wp_atomicPtr__store γ l (y: loc) :
     ∀ Φ,
-    (is_pkg_init hashmap ∗ is_atomic_ptr γ l ∗
-    |={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ y ={∅,⊤}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.atomicPtr.id) @ "store" #y {{ Φ }}.
+    (is_pkg_init hashmap ∗ is_atomic_ptr γ l) -∗
+    (|={⊤,∅}=> ∃ x, own_ptr γ x ∗ (own_ptr γ y ={∅,⊤}=∗ Φ #())) -∗
+    WP l @! (go.PointerType hashmap.atomicPtr) @! "store" #y {{ Φ }}.
   Proof.
-    iIntros (Φ) "(#? & #Hint & Hau)".
-    wp_method_call. wp_call.
+    wp_start as "#Hint". iRename "HΦ" into "Hau".
     iNamed "Hint".
     wp_auto.
 
@@ -138,7 +137,10 @@ End atomic_ptr.
 Import atomic_ptr.
 
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : hashmap.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
+
   Context `{!ghost_varG Σ loc}.
   Context `{!ghost_varG Σ (gmap w64 w64)}.
 
@@ -176,8 +178,8 @@ Section proof.
 
   Definition is_hashmap γ γ_ptr (l: loc) : iProp _ :=
     ∃ (ptr_l mu_l: loc),
-    "#clean" ∷ l ↦s[hashmap.HashMap :: "clean"]□ ptr_l ∗
-    "#mu" ∷ l ↦s[hashmap.HashMap :: "mu"]□ mu_l ∗
+    "#clean" ∷ l.[hashmap.HashMap.t, "clean"] ↦□ ptr_l ∗
+    "#mu" ∷ l.[hashmap.HashMap.t, "mu"] ↦□ mu_l ∗
     "#Hclean" ∷ is_atomic_ptr γ_ptr ptr_l ∗
     "#Hlock" ∷ is_Mutex mu_l (lock_inv γ) ∗
     "#Hinv" ∷ inv N (hashmap_inv γ γ_ptr).
@@ -191,8 +193,7 @@ Section proof.
   Proof.
     wp_start as "_".
     wp_auto.
-    wp_apply (wp_map_make (K:=w64) (V:=w64)) as "%mref Hm".
-    { reflexivity. }
+    wp_apply wp_map_make1 as "%mref Hm".
     iPersist "Hm".
     iMod (ghost_var_alloc (∅: gmap w64 w64)) as (γ) "[[Hm_inv Hm_lock_inv] Hm_user]".
     wp_apply (wp_newAtomicPtr mref).
@@ -205,24 +206,22 @@ Section proof.
     iMod (inv_alloc N _ (hashmap_inv γ γ_ptr) with "[Hown_ptr Hm_inv]") as "#Hinv".
     { iModIntro. iFrame "∗#". }
     wp_alloc l as "Hmap".
-    iApply struct_fields_split in "Hmap". iNamed "Hmap".
-    cbn [hashmap.HashMap.clean' hashmap.HashMap.mu'].
-    iPersist "Hclean Hmu".
-    wp_auto.
-    wp_finish.
+    iStructNamed "Hmap".
+    simpl. iPersist "clean mu".
+    wp_end.
     iFrame "∗#".
   Qed.
 
   Lemma wp_mapClone mref (m: gmap w64 w64) :
-    {{{ is_pkg_init hashmap ∗ own_map (kt:=uint64T) mref DfracDiscarded m }}}
+    {{{ is_pkg_init hashmap ∗ own_map mref DfracDiscarded m }}}
       @! hashmap.mapClone #mref
     {{{ (mref': loc), RET #mref';
-      own_map (kt:=uint64T) mref' (DfracOwn 1) m }}}.
+        own_map mref' (DfracOwn 1) m }}}.
   Proof.
     wp_start as "#Hm".
     wp_auto.
-    wp_apply (wp_map_make (K:=w64) (V:=w64)) as "%mref' Hm_new".
-    { reflexivity. }
+    (* TODO: wp for map len. *)
+    (* wp_apply wp_map_make2 as "%mref' Hm_new". *)
     (* TODO: need wp for map.for_range *)
     (*
     wp_apply (wp_MapIter_2 (K:=w64) (V:=w64) _ _ _ _ _ (λ mtodo mdone,
@@ -236,42 +235,33 @@ Section proof.
       { eauto. }
       wp_auto.
       iIntros "Hm_new".
-      wp_finish.
+      wp_end.
       rewrite /typed_map.map_insert.
       iFrame. }
 
     iIntros "[_ Hm_new]".
     wp_auto.
-    wp_finish.
+    wp_end.
 *)
   Admitted.
 
-  Definition map_get `{!IntoVal V} `{!IntoValTyped V t} (v: option V) : V * bool :=
-    (default (default_val V) v, bool_decide (is_Some v)).
-
-  (* FIXME: eventually use upstream perennial instance *)
-  #[global] Instance own_map_timeless
-  `{!IntoVal K} `{!EqDecision K} `{!Countable K} `{!IntoVal V}
-    mptr dq (m: gmap K V)
-  `{!IntoValTyped K kt} `{!IntoValTyped V vt}
-    : Timeless (own_map mptr dq m).
-  Proof. rewrite own_map_unseal. apply _. Qed.
+  Definition map_get `{!ZeroVal V} (v: option V) : V * bool :=
+    (default (zero_val V) v, bool_decide (is_Some v)).
 
   Lemma wp_HashMap__Load γ γ_ptr l (key: w64) :
     ∀ (Φ: val → iProp Σ),
     (is_pkg_init hashmap ∗
-    is_hashmap γ γ_ptr l ∗
-    |={⊤∖↑N,∅}=> ∃ m, own_hashmap γ m ∗ (own_hashmap γ m ={∅,⊤∖↑N}=∗ Φ (#(fst (map_get (m !! key))), #(snd (map_get (m !! key))))%V)) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Load" #key {{ Φ }}.
+     is_hashmap γ γ_ptr l) -∗
+    (|={⊤∖↑N,∅}=> ∃ m, own_hashmap γ m ∗ (own_hashmap γ m ={∅,⊤∖↑N}=∗ Φ (#(fst (map_get (m !! key))), #(snd (map_get (m !! key))))%V)) -∗
+    WP l @! (go.PointerType hashmap.HashMap) @! "Load" #key {{ Φ }}.
   Proof.
-    iIntros (Φ) "(#? & #Hmap & Hau)".
-    wp_method_call. wp_call.
+    wp_start as "#Hmap". iRename "HΦ" into "Hau".
     iNamed "Hmap".
     wp_auto.
     wp_alloc clean_m_ptr as "Hnew_clean".
     wp_auto.
 
-    wp_apply (wp_atomicPtr__load). iFrame "Hclean".
+    wp_apply (wp_atomicPtr__load with "[$]").
     (* Now we prove the atomic update of the load. The linearization point of
     loading this pointer is _also_ the linearization point for the hashmap
     load, so we need to both open our invariant (to get temporary ownership of
@@ -293,10 +283,10 @@ Section proof.
 
     iModIntro.
     wp_auto.
-    wp_apply (wp_map_get with "[$]").
+    wp_apply (wp_map_lookup2 with "[$]").
     iIntros "_".
     wp_auto.
-    wp_finish.
+    wp_end.
   Qed.
 
   (* The spec of this helper is a bit complicated since it is called with the
@@ -307,13 +297,13 @@ Section proof.
   fraction of [1] due to the deep copy here. *)
   Lemma wp_HashMap__dirty (γ γ_ptr: gname) l (ptr_l: loc) (m: gmap w64 w64) :
     {{{ is_pkg_init hashmap ∗
-        "#clean" ∷ l ↦s[hashmap.HashMap :: "clean"]□ ptr_l ∗
+        "#clean" ∷ l.[hashmap.HashMap.t, "clean"] ↦□ ptr_l ∗
         "#Hclean" ∷ is_atomic_ptr γ_ptr ptr_l ∗
         "#Hinv" ∷ inv N (hashmap_inv γ γ_ptr) ∗
         "Hm_lock" ∷ ghost_var γ (DfracOwn (1/4)) m }}}
-      l @ (ptrT.id hashmap.HashMap.id) @ "dirty" #()
+      l @! (go.PointerType hashmap.HashMap) @! "dirty" #()
     {{{ (mref: loc), RET #mref;
-      own_map (kt:=uint64T) mref (DfracOwn 1) m ∗
+      own_map mref (DfracOwn 1) m ∗
       ghost_var γ (DfracOwn (1/4)) m }}}.
   Proof.
     wp_start as "Hpre". iNamed "Hpre".
@@ -321,7 +311,7 @@ Section proof.
     wp_alloc new_clean_ptr as "Hnew_clean".
     wp_auto.
 
-    wp_apply (wp_atomicPtr__load). iFrame "Hclean".
+    wp_apply (wp_atomicPtr__load with "[$]").
     (* Open hashmap invariant to get pointer ownership *)
     iInv "Hinv" as ">HI" "Hclose_inv".
     iApply fupd_mask_intro; [ set_solver | iIntros "Hmask" ].
@@ -343,19 +333,18 @@ Section proof.
     wp_apply (wp_mapClone with "[$]").
     iIntros (mref') "Hdirty".
     wp_auto.
-    wp_finish.
+    wp_end.
   Qed.
 
   Lemma wp_HashMap__Store γ γ_ptr l (key: w64) (val: w64) :
     ∀ Φ,
     (is_pkg_init hashmap ∗
-    is_hashmap γ γ_ptr l ∗
-    |={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
-        (own_hashmap γ (map_insert key val m) ={∅,⊤ ∖ ↑N}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Store" #key #val {{ Φ }}.
+     is_hashmap γ γ_ptr l) -∗
+    (|={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
+        (own_hashmap γ (<[ key := val ]> m) ={∅,⊤ ∖ ↑N}=∗ Φ #())) -∗
+    WP l @! (go.PointerType hashmap.HashMap) @! "Store" #key #val {{ Φ }}.
   Proof.
-    iIntros (Φ) "(#? & #Hmap & Hau)".
-    wp_method_call. wp_call.
+    wp_start as "#Hmap". iRename "HΦ" into "Hau".
     iNamed "Hmap".
     wp_auto.
     wp_apply (wp_Mutex__Lock with "[$Hlock]"). iIntros "[Hlocked Hlock_inv]".
@@ -369,7 +358,7 @@ Section proof.
     iPersist "Hm" as "Hm_new".
     wp_auto.
 
-    wp_apply (wp_atomicPtr__store). iFrame "Hclean".
+    wp_apply (wp_atomicPtr__store with "[$]").
     (* Open hashmap invariant *)
     iInv "Hinv" as ">HI" "Hclose_inv".
     iMod "Hau" as (m0) "[Hown Hclose_au]".
@@ -398,21 +387,20 @@ Section proof.
     wp_auto.
     wp_apply (wp_Mutex__Unlock with "[$Hlock $Hlocked Hm_lock]").
     { iFrame. }
-    wp_finish.
+    wp_end.
   Qed.
 
   Lemma wp_HashMap__Delete γ γ_ptr l (key: w64) :
     ∀ Φ,
     (is_pkg_init hashmap ∗
-    is_hashmap γ γ_ptr l ∗
-    |={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
+     is_hashmap γ γ_ptr l) -∗
+    (|={⊤ ∖ ↑N,∅}=> ∃ m, own_hashmap γ m ∗
         (own_hashmap γ (delete key m) ={∅,⊤ ∖ ↑N}=∗ Φ #())) -∗
-    WP l @ (ptrT.id hashmap.HashMap.id) @ "Delete" #key {{ Φ }}.
+    WP l @! (go.PointerType hashmap.HashMap) @! "Delete" #key {{ Φ }}.
   Proof.
     (* notice how this proof is nearly identical to that for Store: the way this
     code works generally achieves atomicity for any critical section *)
-    iIntros (Φ) "(#? & #Hmap & Hau)".
-    wp_method_call. wp_call.
+    wp_start as "#Hmap". iRename "HΦ" into "Hau".
     iNamed "Hmap".
     wp_auto.
     wp_apply (wp_Mutex__Lock with "[$Hlock]"). iIntros "[Hlocked Hlock_inv]".
@@ -426,7 +414,7 @@ Section proof.
     iPersist "Hm" as "Hm_new".
     wp_auto.
 
-    wp_apply (wp_atomicPtr__store). iFrame "Hclean".
+    wp_apply (wp_atomicPtr__store with "[$]").
     (* Open hashmap invariant *)
     iInv "Hinv" as ">HI" "Hclose_inv".
     iMod "Hau" as (m0) "[Hown Hclose_au]".
@@ -455,7 +443,7 @@ Section proof.
     wp_auto.
     wp_apply (wp_Mutex__Unlock with "[$Hlock $Hlocked Hm_lock]").
     { iFrame. }
-    wp_finish.
+    wp_end.
   Qed.
 
 End proof.

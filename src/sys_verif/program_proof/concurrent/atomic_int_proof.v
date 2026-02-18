@@ -4,11 +4,13 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Module atomic_int.
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
 
   Definition lock_inv (l: loc) (P: w64 → iProp Σ) : iProp _ :=
     ∃ (x: w64),
-        "Hx" ∷ l ↦s[concurrent.AtomicInt :: "x"] x ∗
+        "Hx" ∷ l.[concurrent.AtomicInt.t, "x"] ↦ x ∗
         "HP" ∷ P x.
 
   (* The namespace of the lock invariant is only relevant when the lock is
@@ -18,7 +20,7 @@ Section proof.
 
   Definition is_atomic_int (l: loc) (P: w64 → iProp Σ): iProp _ :=
     ∃ (mu_l: loc),
-    "mu" ∷ l ↦s[concurrent.AtomicInt :: "mu"]□ mu_l ∗
+    "mu" ∷ l.[concurrent.AtomicInt.t, "mu"] ↦□ mu_l ∗
     "Hlock" ∷ is_Mutex (mu_l) (lock_inv l P).
 
   (* This proof is automatic; we just assert it here. *)
@@ -33,11 +35,10 @@ Section proof.
     wp_start as "HP".
     wp_alloc m_ptr as "m"; wp_auto.
     wp_alloc l as "Hint".
-    iApply struct_fields_split in "Hint". iNamed "Hint".
-    cbn [concurrent.AtomicInt.x' concurrent.AtomicInt.mu'].
-    iPersist "Hmu".
+    iStructNamed "Hint". simpl.
+    iPersist "mu".
     iMod (init_Mutex (lock_inv l P)
-           with "m [HP Hx]") as "Hlock".
+           with "m [HP x]") as "Hlock".
     { iFrame. }
     wp_auto.
     iApply "HΦ".
@@ -46,7 +47,7 @@ Section proof.
 
   Lemma wp_AtomicInt__Get l (P: w64 → iProp _) (Q: w64 → iProp Σ) :
     {{{ is_pkg_init concurrent ∗ is_atomic_int l P ∗ (∀ x, P x -∗ |={⊤}=> Q x ∗ P x) }}}
-      l @ (ptrT.id concurrent.AtomicInt.id) @ "Get" #()
+      l @! (go.PointerType concurrent.AtomicInt) @! "Get" #()
     {{{ (x: w64), RET #x; Q x }}}.
   Proof.
     wp_start as "[#Hint Hfupd]".
@@ -72,7 +73,7 @@ Section proof.
   Lemma wp_AtomicInt__Inc l (P: w64 → iProp _) (Q: w64 → iProp Σ) (y: w64) :
     {{{ is_pkg_init concurrent ∗ is_atomic_int l P ∗
           (∀ x, P x -∗ |={⊤}=> Q x ∗ P (word.add x y)) }}}
-      l @ (ptrT.id concurrent.AtomicInt.id) @ "Inc" #y
+      l @! (go.PointerType concurrent.AtomicInt) @! "Inc" #y
     {{{ (x: w64), RET #(); Q x }}}.
   Proof.
     wp_start as "[#Hint Hfupd]". iNamed "Hint".

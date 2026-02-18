@@ -65,8 +65,9 @@ From Perennial Require Import base.
 (* Some boilerplate is needed to set up a proof. These are assumptions that are
 dispatched by initialization, a process that runs before any other program code. *)
 Section proof.
-Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context `{hG: !heapGS Σ} {sem : go.Semantics} {package_sem : heap.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*| Every Go package must define its initialization predicate, a proposition
 that should hold after it is _initialized_. Goose has a global variable that holds
@@ -85,8 +86,8 @@ These initialization predicates should only be defined once, but multiple files
 prove different subsets of the heap package, so the correct thing to do is to
 factor out the initialization (as we do in heap_init.v).
 |*)
-#[global] Instance : IsPkgInit heap := define_is_pkg_init True%I.
-#[global] Instance : GetIsPkgInitWf heap := build_get_is_pkg_init_wf.
+#[global] Instance : IsPkgInit (iProp Σ) heap := define_is_pkg_init True%I.
+#[global] Instance : GetIsPkgInitWf (iProp Σ) heap := build_get_is_pkg_init_wf.
 
 (*|
 ## A first program proof
@@ -142,16 +143,16 @@ Proof.
   (* `wp_auto` handles must allocations, but you will need to use `wp_alloc` if
   names conflict or if the allocation doesn't have a name in the Go code. *)
   wp_alloc z as "z".
-  (* `wp_pures` is run by `wp_auto` (the latter also handles loads and stores) *)
-  wp_pures.
-  wp_alloc y as "y".
-  wp_pures.
-  wp_alloc x as "x".
-  wp_pures.
+  (* `wp_auto` is run by `wp_auto` (the latter also handles loads and stores) *)
+  wp_auto.
+  (* wp_alloc y as "y". *)
+  (* wp_auto. *)
+  (* wp_alloc x as "x". *)
+  (* wp_auto. *)
   (* `wp_load` should essentially not be needed since you can use `wp_auto`.
   However, if things aren't working this tactic will report a better error message. *)
-  wp_load.
-  wp_load.
+  (* wp_load. *)
+  (* wp_load. *)
 
   (* Use this when the next expression is an `if` to split the proof into the
   two branches. *)
@@ -164,9 +165,9 @@ Proof.
     made as part of the Hoare triple definition. |*)
     iApply "HΦ".
     iFrame.
-  - (* wp_finish just does `iApply "HΦ"` followed by some very simple automation
+  - (* wp_end just does `iApply "HΦ"` followed by some very simple automation
     if the resulting postcondition is easy to solve. *)
-    wp_finish.
+    wp_end.
 Qed.
 
 (*|
@@ -177,8 +178,8 @@ Qed.
 | name | description  |
 |:--|:--|
 | `wp_start`, `wp_start as "ipat"` | Begin a proof of a separation logic triple  |
-| `wp_pures` | "Step through" any pure computation steps |
-| `wp_auto`  | `wp_pures` plus `wp_load` and `wp_auto` for load and store operations |
+| `wp_auto` | "Step through" any pure computation steps |
+| `wp_auto`  | `wp_auto` plus `wp_load` and `wp_auto` for load and store operations |
 | `wp_pure`  | Single step of `wp_pure` (needed for slice operations) |
 | `wp_bind` | Find the next expression that will execute and use the bind rule to "focus" it |
 | `wp_apply` | Wrapper around `iApply` that uses `wp_bind` |
@@ -224,7 +225,7 @@ You will need to understand what an `ipat` is (an intro pattern) and what an
 | `own_slice_len` | If you have `s ↦* xs` (an own_slice assertion), used to relate `slice.len_f s` to `length xs`. See the [wp_SliceSwap example](../ownership.md).
 | `bool_decide_eq_true_2`, `bool_decide_eq_false_2` | Used to prove `bool_decide P = true` or `bool_decide P = false` |
 | `wp_load_slice_elem`, `wp_store_slice_elem` | Use with `wp_apply` to reason about loading/storing slice elements |
-| `struct_fields_split` | Split a struct pointsto `x_l ↦ x` (where `x` is a struct) into fields points-to facts of the form  `x_l ↦s[StructName :: "field"] a`. |
+| `struct_fields_split` | Split a struct pointsto `x_l ↦ x` (where `x` is a struct) into fields points-to facts of the form  `x_l.[StructName.t, "field"] ↦ a`. |
 
 Note that you won't get much out of the theorem statement for `struct_fields_split` - its behavior is to split a struct points-to into individual field points-to's, but the exact theorem statement is defined automatically by proofgen for each struct.
 

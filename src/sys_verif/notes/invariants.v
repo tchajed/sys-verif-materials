@@ -82,7 +82,9 @@ From sys_verif.program_proof Require Import concurrent_init.
 
 Section goose.
 Context `{hG: !heapGS Σ}.
-Context `{!globalsGS Σ} {go_ctx: GoContext}.
+Context {sem : go.Semantics} {package_sem : concurrent.Assumptions}.
+Collection W := sem + package_sem.
+Set Default Proof Using "W".
 
 (*
 func SetX(x *uint64) {
@@ -116,7 +118,7 @@ Proof.
   wp_auto.
   wp_apply (wp_SetX with "[$x]").
   iIntros "x". (* {GOAL} *)
-  wp_pures.
+  wp_auto.
   iApply "HΦ". done.
 Qed.
 
@@ -139,12 +141,11 @@ Proof.
   specification for Fork is equivalent to the wp-spawn above, but is written in
   continuation-passing style. *)
   wp_apply (wp_fork with "[x]").
-  { wp_pures.
+  { wp_auto.
     wp_apply (wp_SetX with "[$x]"). iIntros "x". (* {GOAL} *)
-    wp_pures.
+    wp_auto.
     done.
   }
-  wp_pures.
   iApply "HΦ". done.
 Qed.
 
@@ -219,8 +220,7 @@ Lemma wp_FirstLock_v1 :
   {{{ (y: w64), RET #y; True }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_pures.
-  wp_alloc_auto; wp_pures. (* {GOAL} *)
+  wp_auto.
 
 (*| Note that the automation has allocated a local variable for the mutex - we have `"m" : m_ptr ↦ default_val Mutex.t`.
 
@@ -261,8 +261,7 @@ Lemma wp_FirstLock_v2 :
   {{{ (y: w64), RET #y; ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝ }}}.
 Proof.
   wp_start as "_".
-  wp_alloc_auto; wp_pures.
-  wp_alloc_auto; wp_pures.
+  wp_auto.
   iMod (init_Mutex (∃ (y: w64),
                   "x" :: x_ptr ↦ y ∗
                   "%Hx" :: ⌜uint.Z y = 0 ∨ uint.Z y = 1⌝)%I

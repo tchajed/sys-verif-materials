@@ -37,11 +37,11 @@ From New.generatedproof.sys_verif_code Require Export concurrent.barrier.
 
 
 Section proof.
-  Context `{hG: heapGS Σ} `{!ffi_semantics _ _}.
-  Context {go_ctx: GoContext}.
+Context `{hG: heapGS Σ} `{!ffi_semantics _ _}
+  {sem : go.Semantics} {package_sem : barrier.Assumptions}.
 
-  #[global] Instance : IsPkgInit barrier := define_is_pkg_init True%I.
-  #[global] Instance : GetIsPkgInitWf barrier := build_get_is_pkg_init_wf.
+  #[global] Instance : IsPkgInit (iProp Σ) barrier := define_is_pkg_init True%I.
+  #[global] Instance : GetIsPkgInitWf (iProp Σ) barrier := build_get_is_pkg_init_wf.
 End proof.
 
 
@@ -59,14 +59,17 @@ Class barrierG Σ := BarrierG {
   }.
 
 Definition barrierΣ: gFunctors :=
-  #[ savedPropΣ; auth_setΣ gname ].
+  #[ savedPropΣ; auth_setΣ gname; syncΣ ].
 
 #[global] Instance subG_barrierG Σ : subG barrierΣ Σ → barrierG Σ.
 Proof. solve_inG. Qed.
 
 Section proof.
-  Context `{hG: !heapGS Σ} `{!globalsGS Σ} {go_ctx: GoContext}.
+  Context `{hG: heapGS Σ} `{!ffi_semantics _ _}
+    {sem : go.Semantics} {package_sem : barrier.Assumptions}.
   Context `{!barrierG Σ}.
+  Collection W := sem + package_sem.
+  Set Default Proof Using "W".
 
 (*| ## Barrier predicates and invariants
 
@@ -112,14 +115,14 @@ Two extremes are worth thinking about here. First, once we've created all the `s
 
   Definition lock_inv (l: loc) (γ: barrier_names) : iProp Σ :=
     ∃ (numWaiting: w64),
-      "numWaiting" ∷ l ↦s[barrier.Barrier :: "numWaiting"] numWaiting ∗
+      "numWaiting" ∷ l.[barrier.Barrier.t, "numWaiting"] ↦ numWaiting ∗
       "Hbar" ∷ own_barrier_ghost γ numWaiting.
 
   Definition is_barrier (l: loc) (γ: barrier_names): iProp Σ :=
     ∃ (mu_l cond_l: loc),
-      "#mu" ∷ l ↦s[barrier.Barrier :: "mu"]□ mu_l ∗
-      "#cond" ∷ l ↦s[barrier.Barrier :: "cond"]□ cond_l ∗
-      "#Hcond" ∷ is_Cond cond_l (interface.mk (ptrT.id sync.Mutex.id) #mu_l) ∗
+      "#mu" ∷ l.[barrier.Barrier.t, "mu"] ↦□ mu_l ∗
+      "#cond" ∷ l.[barrier.Barrier.t, "cond"] ↦□ cond_l ∗
+      "#Hcond" ∷ is_Cond cond_l (interface.mk (go.PointerType sync.Mutex) #mu_l) ∗
       "#Hlock" ∷ is_Mutex (mu_l) (lock_inv l γ).
 
   #[global] Instance is_barrier_persistent l γ : Persistent (is_barrier l γ) := _.
@@ -317,14 +320,14 @@ Finally, we do all the program proofs, the specifications for each function. The
 
     wp_apply (wp_NewCond) as "%c His_cond".
     wp_alloc l as "Hbarrier".
-    iApply struct_fields_split in "Hbarrier". iNamed "Hbarrier".
-    cbn [barrier.Barrier.numWaiting' barrier.Barrier.mu' barrier.Barrier.cond'].
+    iStructNamed "Hbarrier".
+    simpl.
     wp_auto.
 
     iMod (own_barrier_ghost_alloc) as (γ) "[Hbar Hrecv]".
     iMod (init_Mutex (lock_inv _ γ)
-           with "Hlock [$Hbar $HnumWaiting]") as "His_lock".
-    iPersist "Hmu Hcond".
+           with "Hlock [$Hbar $numWaiting]") as "His_lock".
+    iPersist "mu cond".
     iModIntro.
     iApply "HΦ".
     iFrame "#∗".
@@ -332,7 +335,7 @@ Finally, we do all the program proofs, the specifications for each function. The
 
   Lemma wp_Barrier__Add1 (P: iProp Σ) (Q: iProp Σ) γ l :
     {{{ is_pkg_init barrier ∗ is_barrier l γ ∗ recv γ Q }}}
-      l @ (ptrT.id barrier.Barrier.id) @ "Add" #(W64 1)
+      l @! (go.PointerType barrier.Barrier) @! "Add" #(W64 1)
     {{{ RET #(); send γ P ∗ recv γ (Q ∗ P) }}}.
   Proof.
     wp_start as "[#Hbar Hrecv]".
@@ -354,7 +357,7 @@ Finally, we do all the program proofs, the specifications for each function. The
 
   Lemma wp_Barrier__Done γ l P :
     {{{ is_pkg_init barrier ∗ is_barrier l γ ∗ send γ P ∗ P }}}
-      l @ (ptrT.id barrier.Barrier.id) @ "Done" #()
+      l @! (go.PointerType barrier.Barrier) @! "Done" #()
     {{{ RET #(); True }}}.
   Proof.
     wp_start as "(#Hbar & HsendP & HP)".
@@ -386,7 +389,7 @@ Finally, we do all the program proofs, the specifications for each function. The
 
   Lemma wp_Barrier__Wait γ l Q :
     {{{ is_pkg_init barrier ∗ is_barrier l γ ∗ recv γ Q }}}
-      l @ (ptrT.id barrier.Barrier.id) @ "Wait" #()
+      l @! (go.PointerType barrier.Barrier) @! "Wait" #()
     {{{ RET #(); Q ∗ recv γ emp }}}.
   Proof.
     wp_start as "(#Hbar & HrecvQ)".

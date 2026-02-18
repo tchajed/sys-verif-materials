@@ -2,220 +2,119 @@
 Require Export New.proof.proof_prelude.
 Require Export New.generatedproof.sync.
 Require Export New.golang.theory.
-
 Require Export New.code.sys_verif_code.hashmap.
 
 Set Default Proof Using "Type".
 
 Module hashmap.
-
-(* type hashmap.atomicPtr *)
 Module atomicPtr.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  mu' : loc;
-  val' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance atomicPtr_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (hashmap.atomicPtr.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "mu" ∷ l.[(hashmap.atomicPtr.t), "mu"] ↦{dq} v.(hashmap.atomicPtr.mu') ∗
+      "val" ∷ l.[(hashmap.atomicPtr.t), "val"] ↦{dq} v.(hashmap.atomicPtr.val') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance atomicPtr_into_val_typed
+   :
+  IntoValTypedUnderlying (hashmap.atomicPtr.t) (hashmap.atomicPtrⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance atomicPtr_access_load_mu l (v : (hashmap.atomicPtr.t)) dq :
+  AccessStrict
+    (l.[(hashmap.atomicPtr.t), "mu"] ↦{dq} (v.(hashmap.atomicPtr.mu')))
+    (l.[(hashmap.atomicPtr.t), "mu"] ↦{dq} (v.(hashmap.atomicPtr.mu')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance atomicPtr_access_store_mu l (v : (hashmap.atomicPtr.t)) mu' :
+  AccessStrict
+    (l.[(hashmap.atomicPtr.t), "mu"] ↦ (v.(hashmap.atomicPtr.mu')))
+    (l.[(hashmap.atomicPtr.t), "mu"] ↦ mu')
+    (l ↦ v) (l ↦ (v <|(hashmap.atomicPtr.mu') := mu'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance atomicPtr_access_load_val l (v : (hashmap.atomicPtr.t)) dq :
+  AccessStrict
+    (l.[(hashmap.atomicPtr.t), "val"] ↦{dq} (v.(hashmap.atomicPtr.val')))
+    (l.[(hashmap.atomicPtr.t), "val"] ↦{dq} (v.(hashmap.atomicPtr.val')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance atomicPtr_access_store_val l (v : (hashmap.atomicPtr.t)) val' :
+  AccessStrict
+    (l.[(hashmap.atomicPtr.t), "val"] ↦ (v.(hashmap.atomicPtr.val')))
+    (l.[(hashmap.atomicPtr.t), "val"] ↦ val')
+    (l ↦ v) (l ↦ (v <|(hashmap.atomicPtr.val') := val'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End atomicPtr.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent hashmap.atomicPtr.
-#[local] Typeclasses Transparent hashmap.atomicPtr.
-
-Global Instance atomicPtr_wf : struct.Wf hashmap.atomicPtr.
-Proof. apply _. Qed.
-
-Global Instance settable_atomicPtr : Settable atomicPtr.t :=
-  settable! atomicPtr.mk < atomicPtr.mu'; atomicPtr.val' >.
-Global Instance into_val_atomicPtr : IntoVal atomicPtr.t :=
-  {| to_val_def v :=
-    struct.val_aux hashmap.atomicPtr [
-    "mu" ::= #(atomicPtr.mu' v);
-    "val" ::= #(atomicPtr.val' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_atomicPtr : IntoValTyped atomicPtr.t hashmap.atomicPtr :=
-{|
-  default_val := atomicPtr.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_atomicPtr_mu : IntoValStructField "mu" hashmap.atomicPtr atomicPtr.mu'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_atomicPtr_val : IntoValStructField "val" hashmap.atomicPtr atomicPtr.val'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_atomicPtr mu' val':
-  PureWp True
-    (struct.make #hashmap.atomicPtr (alist_val [
-      "mu" ::= #mu';
-      "val" ::= #val'
-    ]))%struct
-    #(atomicPtr.mk mu' val').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance atomicPtr_struct_fields_split dq l (v : atomicPtr.t) :
-  StructFieldsSplit dq l v (
-    "Hmu" ∷ l ↦s[hashmap.atomicPtr :: "mu"]{dq} v.(atomicPtr.mu') ∗
-    "Hval" ∷ l ↦s[hashmap.atomicPtr :: "val"]{dq} v.(atomicPtr.val')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (atomicPtr.mu' v)) (hashmap.atomicPtr) "mu"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-(* type hashmap.HashMap *)
 Module HashMap.
 Section def.
-Context `{ffi_syntax}.
-Record t := mk {
-  clean' : loc;
-  mu' : loc;
-}.
+
+Context `{hG: heapGS Σ, !ffi_semantics _ _}.
+Context {sem : go.Semantics}.
+Context {package_sem' : hashmap.Assumptions}.
+
+Local Set Default Proof Using "All".
+
+#[global]Program Instance HashMap_typed_pointsto  :
+  TypedPointsto (Σ:=Σ) (hashmap.HashMap.t) :=
+  {|
+    typed_pointsto_def l v dq :=
+      (
+      "clean" ∷ l.[(hashmap.HashMap.t), "clean"] ↦{dq} v.(hashmap.HashMap.clean') ∗
+      "mu" ∷ l.[(hashmap.HashMap.t), "mu"] ↦{dq} v.(hashmap.HashMap.mu') ∗
+      "_" ∷ True
+      )%I
+  |}.
+Final Obligation. solve_typed_pointsto_agree. Qed.
+
+#[global] Instance HashMap_into_val_typed
+   :
+  IntoValTypedUnderlying (hashmap.HashMap.t) (hashmap.HashMapⁱᵐᵖˡ).
+Proof. solve_into_val_typed_struct. Qed.
+#[global] Instance HashMap_access_load_clean l (v : (hashmap.HashMap.t)) dq :
+  AccessStrict
+    (l.[(hashmap.HashMap.t), "clean"] ↦{dq} (v.(hashmap.HashMap.clean')))
+    (l.[(hashmap.HashMap.t), "clean"] ↦{dq} (v.(hashmap.HashMap.clean')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance HashMap_access_store_clean l (v : (hashmap.HashMap.t)) clean' :
+  AccessStrict
+    (l.[(hashmap.HashMap.t), "clean"] ↦ (v.(hashmap.HashMap.clean')))
+    (l.[(hashmap.HashMap.t), "clean"] ↦ clean')
+    (l ↦ v) (l ↦ (v <|(hashmap.HashMap.clean') := clean'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+#[global] Instance HashMap_access_load_mu l (v : (hashmap.HashMap.t)) dq :
+  AccessStrict
+    (l.[(hashmap.HashMap.t), "mu"] ↦{dq} (v.(hashmap.HashMap.mu')))
+    (l.[(hashmap.HashMap.t), "mu"] ↦{dq} (v.(hashmap.HashMap.mu')))
+    (l ↦{dq} v) (l ↦{dq} v)%I.
+Proof. solve_pointsto_access_struct. Qed.
+
+#[global] Instance HashMap_access_store_mu l (v : (hashmap.HashMap.t)) mu' :
+  AccessStrict
+    (l.[(hashmap.HashMap.t), "mu"] ↦ (v.(hashmap.HashMap.mu')))
+    (l.[(hashmap.HashMap.t), "mu"] ↦ mu')
+    (l ↦ v) (l ↦ (v <|(hashmap.HashMap.mu') := mu'|>))%I.
+Proof. solve_pointsto_access_struct. Qed.
+
 End def.
 End HashMap.
 
-Section instances.
-Context `{ffi_syntax}.
-#[local] Transparent hashmap.HashMap.
-#[local] Typeclasses Transparent hashmap.HashMap.
-
-Global Instance HashMap_wf : struct.Wf hashmap.HashMap.
-Proof. apply _. Qed.
-
-Global Instance settable_HashMap : Settable HashMap.t :=
-  settable! HashMap.mk < HashMap.clean'; HashMap.mu' >.
-Global Instance into_val_HashMap : IntoVal HashMap.t :=
-  {| to_val_def v :=
-    struct.val_aux hashmap.HashMap [
-    "clean" ::= #(HashMap.clean' v);
-    "mu" ::= #(HashMap.mu' v)
-    ]%struct
-  |}.
-
-Global Program Instance into_val_typed_HashMap : IntoValTyped HashMap.t hashmap.HashMap :=
-{|
-  default_val := HashMap.mk (default_val _) (default_val _);
-|}.
-Next Obligation. solve_to_val_type. Qed.
-Next Obligation. solve_zero_val. Qed.
-Next Obligation. solve_to_val_inj. Qed.
-Final Obligation. solve_decision. Qed.
-
-Global Instance into_val_struct_field_HashMap_clean : IntoValStructField "clean" hashmap.HashMap HashMap.clean'.
-Proof. solve_into_val_struct_field. Qed.
-
-Global Instance into_val_struct_field_HashMap_mu : IntoValStructField "mu" hashmap.HashMap HashMap.mu'.
-Proof. solve_into_val_struct_field. Qed.
-
-
-Context `{!ffi_model, !ffi_semantics _ _, !ffi_interp _, !heapGS Σ}.
-Global Instance wp_struct_make_HashMap clean' mu':
-  PureWp True
-    (struct.make #hashmap.HashMap (alist_val [
-      "clean" ::= #clean';
-      "mu" ::= #mu'
-    ]))%struct
-    #(HashMap.mk clean' mu').
-Proof. solve_struct_make_pure_wp. Qed.
-
-
-Global Instance HashMap_struct_fields_split dq l (v : HashMap.t) :
-  StructFieldsSplit dq l v (
-    "Hclean" ∷ l ↦s[hashmap.HashMap :: "clean"]{dq} v.(HashMap.clean') ∗
-    "Hmu" ∷ l ↦s[hashmap.HashMap :: "mu"]{dq} v.(HashMap.mu')
-  ).
-Proof.
-  rewrite /named.
-  apply struct_fields_split_intro.
-  unfold_typed_pointsto; split_pointsto_app.
-
-  rewrite -!/(typed_pointsto_def _ _ _) -!typed_pointsto_unseal.
-  simpl_one_flatten_struct (# (HashMap.clean' v)) (hashmap.HashMap) "clean"%go.
-
-  solve_field_ref_f.
-Qed.
-
-End instances.
-
-Section names.
-
-Context `{hG: heapGS Σ, !ffi_semantics _ _}.
-Context `{!globalsGS Σ}.
-Context {go_ctx : GoContext}.
-#[local] Transparent is_pkg_defined is_pkg_defined_pure.
-
-Global Instance is_pkg_defined_pure_hashmap : IsPkgDefinedPure hashmap :=
-  {|
-    is_pkg_defined_pure_def go_ctx :=
-      is_pkg_defined_pure_single hashmap ∧
-      is_pkg_defined_pure code.sync.sync;
-  |}.
-
-#[local] Transparent is_pkg_defined_single is_pkg_defined_pure_single.
-Global Program Instance is_pkg_defined_hashmap : IsPkgDefined hashmap :=
-  {|
-    is_pkg_defined_def go_ctx :=
-      (is_pkg_defined_single hashmap ∗
-       is_pkg_defined code.sync.sync)%I
-  |}.
-Final Obligation. iIntros. iFrame "#%". Qed.
-#[local] Opaque is_pkg_defined_single is_pkg_defined_pure_single.
-
-Global Instance wp_func_call_newAtomicPtr :
-  WpFuncCall hashmap.newAtomicPtr _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_NewHashMap :
-  WpFuncCall hashmap.NewHashMap _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_func_call_mapClone :
-  WpFuncCall hashmap.mapClone _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_func_call).
-
-Global Instance wp_method_call_atomicPtr'ptr_load :
-  WpMethodCall (ptrT.id hashmap.atomicPtr.id) "load" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_atomicPtr'ptr_store :
-  WpMethodCall (ptrT.id hashmap.atomicPtr.id) "store" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_Delete :
-  WpMethodCall (ptrT.id hashmap.HashMap.id) "Delete" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_Load :
-  WpMethodCall (ptrT.id hashmap.HashMap.id) "Load" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_Store :
-  WpMethodCall (ptrT.id hashmap.HashMap.id) "Store" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-Global Instance wp_method_call_HashMap'ptr_dirty :
-  WpMethodCall (ptrT.id hashmap.HashMap.id) "dirty" _ (is_pkg_defined hashmap) :=
-  ltac:(solve_wp_method_call).
-
-End names.
 End hashmap.
