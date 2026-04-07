@@ -51,16 +51,11 @@ Lemma wp_NewStack :
   {{{ l, RET #l; stack_rep l [] }}}.
 Proof.
   wp_start as "_".
-  wp_apply wp_slice_literal as "% _".
-  { iIntros. wp_auto. iFrame. }
+  wp_apply wp_slice_literal. iSplitR; first done. iIntros "% [Hsl Hcap]". wp_auto.
   wp_alloc l as "H".
   wp_auto.
   iStructNamed "H". simpl.
   wp_end.
-  iFrame.
-  iSplitL.
-  - iApply own_slice_empty; done.
-  - iApply own_slice_cap_empty; done.
 Qed.
 
 Lemma wp_Stack__Push l xs (x: w64) :
@@ -71,8 +66,7 @@ Proof.
   wp_start as "Hstack".
   iNamed "Hstack".
   wp_auto.
-  wp_apply (wp_slice_literal) as "%s_tmp Hs_tmp".
-  { iIntros. wp_auto. iFrame. }
+  wp_apply wp_slice_literal. iSplitR; first done. iIntros "%s_tmp [Hs_tmp _]". wp_auto.
   wp_apply (wp_slice_append with "[$Hels $Hels_cap $Hs_tmp]").
   iIntros (s') "(Hels & Hels_cap & Hs_tmp)".
   wp_auto.
