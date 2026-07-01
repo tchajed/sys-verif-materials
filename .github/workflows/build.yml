@@ -10,7 +10,7 @@ jobs:
   rocq:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: tchajed/setup-rocq@v1
       - name: Install dependencies
         run: |
@@ -25,7 +25,7 @@ jobs:
       run:
         working-directory: "go"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Go
         uses: actions/setup-go@v6
         with:
@@ -54,7 +54,7 @@ jobs:
       run:
         working-directory: "template"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy, rustfmt
